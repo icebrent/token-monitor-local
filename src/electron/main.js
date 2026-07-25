@@ -174,7 +174,7 @@ const { applyWindowsAccentBlur } = require('./windowsBackdrop');
 
 if (!app.isPackaged) loadDotEnv();
 
-const APP_NAME = 'Token Monitor';
+const APP_NAME = 'Codex Offline Monitor';
 const APP_ICON_PATH = path.join(__dirname, '..', '..', 'assets', 'icon.png');
 
 const DEFAULT_WINDOW = { width: 340, height: 650 };
@@ -217,6 +217,7 @@ const serviceStatusClient = createServiceStatusClient();
 const STATUS_PAGE_HOSTS = new Set(SERVICE_STATUS_PROVIDERS.map((provider) => new URL(provider.pageUrl).hostname));
 
 app.setName(APP_NAME);
+app.setPath('userData', path.join(app.getPath('appData'), APP_NAME));
 if (process.platform === 'win32') app.setAppUserModelId('com.javis.tokenmonitor');
 
 const gotLock = app.requestSingleInstanceLock();
