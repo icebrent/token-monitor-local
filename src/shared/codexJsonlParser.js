@@ -22,6 +22,7 @@ function emptyPeriod() {
     modelCacheWrites: {},
     modelOutputs: {},
     clientModels: {},
+    projects: {},
     sessions: {}
   };
 }
@@ -206,6 +207,35 @@ function addNumber(map, key, value) {
   if (value > 0) map[key] = (map[key] || 0) + value;
 }
 
+function canonicalProjectKey(value) {
+  const label = String(value || '').trim().normalize('NFC');
+  return label ? label.toLowerCase().normalize('NFC') : '';
+}
+
+function deterministicProjectLabel(left, right) {
+  const a = String(left || '').trim().normalize('NFC');
+  const b = String(right || '').trim().normalize('NFC');
+  if (!a) return b;
+  if (!b) return a;
+  return a < b ? a : b;
+}
+
+function projectRollupFromSessions(sessions) {
+  const projects = {};
+  for (const session of Object.values(sessions || {})) {
+    const label = String(session?.projectLabel || '').trim().normalize('NFC');
+    const key = canonicalProjectKey(label);
+    if (!key) continue;
+    const project = projects[key] || { label, tokens: 0, costUsd: 0, clients: {} };
+    project.label = deterministicProjectLabel(project.label, label);
+    const tokens = Math.max(0, Math.round(number(session.totalTokens)));
+    project.tokens += tokens;
+    if (tokens > 0) addNumber(project.clients, 'codex', tokens);
+    projects[key] = project;
+  }
+  return projects;
+}
+
 function addTurnToPeriod(period, parsed, turn) {
   const key = `codex:${parsed.sessionId}`;
   const tokens = turn.tokens;
@@ -276,8 +306,37 @@ function graphFromTurns(parsedSessions) {
   return { contributions: [...days.values()].sort((a, b) => a.date.localeCompare(b.date)) };
 }
 
-function normalizeLocalHistory(graphData) {
+function dayKeyAddDays(key, delta) {
+  const milliseconds = Date.parse(`${key}T00:00:00Z`) + delta * 86400000;
+  return new Date(milliseconds).toISOString().slice(0, 10);
+}
+
+function computeStreaks(days, todayKey) {
+  const active = new Set();
+  for (const day of (Array.isArray(days) ? days : [])) {
+    if (number(day.tokens) > 0) active.add(String(day.date).slice(0, 10));
+  }
+  let currentStreak = 0;
+  let cursor = String(todayKey).slice(0, 10);
+  while (active.has(cursor)) {
+    currentStreak += 1;
+    cursor = dayKeyAddDays(cursor, -1);
+  }
+  const sorted = [...active].sort();
+  let longestStreak = 0;
+  let run = 0;
+  let previous = null;
+  for (const key of sorted) {
+    run = previous !== null && key === dayKeyAddDays(previous, 1) ? run + 1 : 1;
+    longestStreak = Math.max(longestStreak, run);
+    previous = key;
+  }
+  return { currentStreak, longestStreak };
+}
+
+function normalizeLocalHistory(graphData, options = {}) {
   const daily = graphData.contributions || [];
+  const todayKey = String(options.todayKey || localDay(new Date())).slice(0, 10);
   const months = new Map();
   const modelTotals = {};
   for (const day of daily) {
@@ -292,12 +351,15 @@ function normalizeLocalHistory(graphData) {
     months.set(key, month);
   }
   const favoriteModel = Object.entries(modelTotals).sort((a, b) => b[1] - a[1])[0]?.[0] || '';
+  const { currentStreak, longestStreak } = computeStreaks(daily, todayKey);
   return {
     daily,
     monthly: [...months.values()],
     summary: {
       totalTokens: daily.reduce((sum, day) => sum + day.tokens, 0),
       activeDays: daily.filter((day) => day.tokens > 0).length,
+      currentStreak,
+      longestStreak,
       peakDayTokens: daily.reduce((max, day) => Math.max(max, day.tokens), 0),
       messages: daily.reduce((sum, day) => sum + day.messages, 0),
       favoriteModel
@@ -394,7 +456,10 @@ function collectCodexUsage(options = {}) {
     }
   }
 
-  const history = normalizeLocalHistory(graphFromTurns(parsedSessions));
+  for (const period of Object.values(periods)) {
+    period.projects = projectRollupFromSessions(period.sessions);
+  }
+  const history = normalizeLocalHistory(graphFromTurns(parsedSessions), { todayKey: localDay(now) });
   return { periods, history, diagnostics, parsedSessions };
 }
 
@@ -409,6 +474,7 @@ module.exports = {
   normalizeLocalHistory,
   parseCodexSessionText,
   periodStarts,
+  projectRollupFromSessions,
   usageDelta,
   usageSnapshot
 };

@@ -31,12 +31,26 @@
       </div>
     </header>
 
-    <nav class="period-tabs" aria-label="统计周期">
-      <button class="period active" data-period="today" type="button">今天</button>
-      <button class="period" data-period="month" type="button">本月</button>
-      <button class="period" data-period="allTime" type="button">全部</button>
-      <button class="period" data-period="trends" type="button">趋势</button>
-    </nav>
+    <section class="view-controls">
+      <label class="view-selector">
+        <span>页面</span>
+        <select id="view-select">
+          <option value="overview">总览</option>
+          <option value="analysis">分析</option>
+        </select>
+      </label>
+      <nav id="overview-tabs" class="secondary-tabs period-tabs" aria-label="统计周期">
+        <button class="period active" data-period="today" type="button">今天</button>
+        <button class="period" data-period="month" type="button">本月</button>
+        <button class="period" data-period="allTime" type="button">全部</button>
+      </nav>
+      <nav id="analysis-tabs" class="secondary-tabs analysis-tabs" aria-label="分析维度" hidden>
+        <button class="analysis-tab active" data-analysis="overview" type="button">概览</button>
+        <button class="analysis-tab" data-analysis="models" type="button">模型</button>
+        <button class="analysis-tab" data-analysis="projects" type="button">项目</button>
+        <button class="analysis-tab" data-analysis="dates" type="button">日期</button>
+      </nav>
+    </section>
 
     <div id="content-stage" class="content-stage">
       <p id="error" class="error" hidden></p>
@@ -68,18 +82,54 @@
         </section>
       </section>
 
-      <section id="trends-view" hidden>
-        <section class="panel trend-panel">
-          <div class="panel-title"><h2>每日趋势</h2><span>最近 28 个活跃日</span></div>
-          <div id="trend-chart" class="trend-chart" aria-label="每日 token 趋势图"></div>
+      <section id="analysis-view" class="analysis-view" hidden>
+        <section id="analysis-overview">
+          <section class="panel">
+            <div class="panel-title"><h2>活跃热力图</h2><span>滚动一年</span></div>
+            <div id="heatmap-scroll" class="heatmap-scroll">
+              <div id="heatmap-chart" class="heatmap-chart" aria-label="每日 token 活跃热力图"></div>
+            </div>
+          </section>
+          <section class="panel">
+            <div class="panel-title"><h2>历史概览</h2></div>
+            <div class="metrics analysis-metrics">
+              <article><span>活跃日</span><strong id="active-days">0</strong></article>
+              <article><span>当前连续</span><strong id="current-streak">0</strong></article>
+              <article><span>最长连续</span><strong id="longest-streak">0</strong></article>
+              <article><span>峰值日</span><strong id="peak-day">0</strong></article>
+              <article><span>消息数</span><strong id="history-messages">0</strong></article>
+              <article><span>常用模型</span><strong id="favorite-model">—</strong></article>
+            </div>
+          </section>
+          <section class="panel trend-panel">
+            <div class="panel-title"><h2>每日趋势</h2><span>最近 28 个活跃日</span></div>
+            <div id="trend-chart" class="trend-chart" aria-label="每日 token 趋势图"></div>
+          </section>
         </section>
-        <section class="panel">
-          <div class="panel-title"><h2>历史概览</h2></div>
-          <div class="metrics trend-metrics">
-            <article><span>活跃日</span><strong id="active-days">0</strong></article>
-            <article><span>峰值日</span><strong id="peak-day">0</strong></article>
-            <article><span>常用模型</span><strong id="favorite-model">—</strong></article>
-          </div>
+
+        <section id="analysis-models" hidden>
+          <section class="panel">
+            <div class="panel-title"><h2>模型汇总</h2><span>全部时间</span></div>
+            <div id="analysis-model-list" class="analysis-list"></div>
+          </section>
+        </section>
+
+        <section id="analysis-projects" hidden>
+          <section class="panel">
+            <div class="panel-title"><h2>项目汇总</h2><span>全部时间</span></div>
+            <div id="analysis-project-list" class="analysis-list"></div>
+          </section>
+        </section>
+
+        <section id="analysis-dates" hidden>
+          <section class="panel trend-panel">
+            <div class="panel-title"><h2>每日趋势</h2><span>最近 28 个活跃日</span></div>
+            <div id="daily-trend-chart" class="trend-chart" aria-label="每日 token 趋势图"></div>
+          </section>
+          <section class="panel">
+            <div class="panel-title"><h2>月度汇总</h2></div>
+            <div id="monthly-list" class="analysis-list"></div>
+          </section>
         </section>
       </section>
     </div>
@@ -128,6 +178,7 @@
     </section>
   </main>
   <script src="./modelRows.js"></script>
+  <script src="./analysis.js"></script>
   <script src="./tokenTransition.js"></script>
   <script src="./app.js"></script>
 </body>

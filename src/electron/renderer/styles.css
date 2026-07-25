@@ -25,6 +25,8 @@
 
 * { box-sizing: border-box; }
 
+[hidden] { display: none !important; }
+
 html, body {
   width: 100%;
   height: 100%;
@@ -80,9 +82,28 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .window-actions { display: flex; gap: 5px; -webkit-app-region: no-drag; }
 .window-actions button { width: 29px; height: 27px; padding: 0; border: 0; color: var(--muted); font-size: 15px; }
 
-.period-tabs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; margin: 18px 0 14px; }
-.period-tabs button { padding: 7px 4px; border-color: transparent; color: var(--muted); font-size: 13px; }
-.period-tabs button.active { color: var(--text); background: var(--panel); border-color: var(--line); }
+.view-controls { margin: 16px 0 14px; }
+.view-selector {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 9px;
+}
+.view-selector span { color: var(--muted); font-size: 12px; font-weight: 700; }
+.view-selector select {
+  width: 100%;
+  padding: 8px 10px;
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  cursor: pointer;
+}
+.secondary-tabs { display: grid; gap: 5px; margin-top: 8px; }
+.period-tabs { grid-template-columns: repeat(3, 1fr); }
+.analysis-tabs { grid-template-columns: repeat(4, 1fr); }
+.secondary-tabs button { padding: 7px 4px; border-color: transparent; color: var(--muted); font-size: 13px; }
+.secondary-tabs button.active { color: var(--text); background: var(--panel); border-color: var(--line); }
 
 .content-stage {
   min-height: 0;
@@ -140,7 +161,52 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .trend-chart { display: flex; align-items: flex-end; gap: 3px; height: 220px; padding-top: 10px; }
 .trend-bar { flex: 1 1 0; min-width: 2px; border-radius: 3px 3px 1px 1px; background: linear-gradient(180deg, var(--accent), var(--accent-2)); opacity: 0.85; }
 .trend-bar:hover { opacity: 1; }
-.trend-metrics { grid-template-columns: repeat(3, 1fr); }
+
+.analysis-view {
+  height: 100%;
+  padding-right: 2px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+.analysis-view > section > .panel:first-child { margin-top: 0; }
+.analysis-metrics { grid-template-columns: repeat(3, 1fr); }
+.heatmap-scroll {
+  width: 100%;
+  padding: 2px 0 8px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+.heatmap-chart { position: relative; min-height: 95px; }
+.heatmap-cell {
+  position: absolute;
+  border-radius: 2px;
+  background: var(--line);
+}
+.heatmap-cell.level-1 { background: color-mix(in srgb, var(--accent) 30%, var(--line)); }
+.heatmap-cell.level-2 { background: color-mix(in srgb, var(--accent) 52%, var(--line)); }
+.heatmap-cell.level-3 { background: color-mix(in srgb, var(--accent) 75%, var(--line)); }
+.heatmap-cell.level-4 { background: var(--accent); box-shadow: 0 0 7px color-mix(in srgb, var(--accent) 40%, transparent); }
+.heatmap-month {
+  position: absolute;
+  top: 80px;
+  color: var(--muted);
+  font-size: 10px;
+  white-space: nowrap;
+}
+.analysis-list { display: grid; }
+.analysis-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 5px 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+.analysis-row:last-child { border-bottom: 0; }
+.analysis-row span { overflow: hidden; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.analysis-row strong { font-size: 12px; font-variant-numeric: tabular-nums; }
+.analysis-track { grid-column: 1 / -1; height: 4px; overflow: hidden; border-radius: 4px; background: var(--line); }
+.analysis-fill { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--accent), var(--accent-2)); }
 
 .settings-trigger, .settings-close {
   display: flex;

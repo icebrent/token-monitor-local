@@ -1,9 +1,16 @@
 'use strict';
 
 const api = window.codexOffline;
+const analysis = window.codexAnalysis;
 const modelRows = window.codexModelRows;
 const tokenTransition = window.codexTokenTransition;
-const state = { stats: null, period: 'today', settings: null };
+const state = {
+  stats: null,
+  view: 'overview',
+  period: 'today',
+  analysisTab: 'overview',
+  settings: null
+};
 const byId = (id) => document.getElementById(id);
 const format = new Intl.NumberFormat('zh-CN', { notation: 'compact', maximumFractionDigits: 1 });
 const exact = new Intl.NumberFormat('zh-CN');
@@ -172,38 +179,154 @@ function renderSessions(period) {
   }
 }
 
-function renderTrend() {
+function trendPoints() {
   const history = state.stats?.history || {};
-  const days = (history.daily || []).filter((day) => number(day.tokens) > 0).slice(-28);
-  const max = Math.max(1, ...days.map((day) => number(day.tokens)));
-  const chart = byId('trend-chart');
+  return (history.daily || []).filter((day) => number(day.tokens) > 0).slice(-28);
+}
+
+function renderTrendChart(id, points = trendPoints()) {
+  const chart = byId(id);
   chart.replaceChildren();
-  for (const day of days) {
+  const model = analysis.sparklinePreview(points, { width: 300, height: 220, gap: 0.25 });
+  for (let index = 0; index < points.length; index += 1) {
+    const point = points[index];
+    const value = number(point.tokens);
     const bar = document.createElement('div');
     bar.className = 'trend-bar';
-    bar.style.height = `${Math.max(3, number(day.tokens) / max * 100)}%`;
-    bar.title = `${day.date}: ${exact.format(number(day.tokens))} token`;
+    bar.style.height = `${Math.max(3, model.bars[index].height / model.height * 100)}%`;
+    bar.title = `${point.date}: ${exact.format(value)} token`;
     chart.append(bar);
   }
+}
+
+function renderHeatmap() {
+  const daily = state.stats?.history?.daily || [];
+  const model = analysis.rollingYearHeatmap(daily);
+  const chart = byId('heatmap-chart');
+  chart.replaceChildren();
+  chart.style.width = `${model.width}px`;
+  chart.style.height = `${model.height + 16}px`;
+  for (const cell of model.cells) {
+    const element = document.createElement('i');
+    element.className = `heatmap-cell level-${cell.intensity}`;
+    element.style.left = `${cell.x}px`;
+    element.style.top = `${cell.y}px`;
+    element.style.width = `${cell.size}px`;
+    element.style.height = `${cell.size}px`;
+    element.title = `${cell.date}: ${exact.format(cell.tokens)} token`;
+    chart.append(element);
+  }
+  for (const month of model.monthLabels) {
+    const label = document.createElement('span');
+    label.className = 'heatmap-month';
+    label.style.left = `${month.column * (model.cell + model.gap)}px`;
+    label.textContent = month.label.slice(5);
+    chart.append(label);
+  }
+  const scroller = byId('heatmap-scroll');
+  scroller.scrollLeft = scroller.scrollWidth;
+}
+
+function renderAnalysisRows(id, entries) {
+  const container = byId(id);
+  container.replaceChildren();
+  const rows = entries
+    .map(([label, value]) => [String(label || ''), number(value)])
+    .filter(([label, value]) => label && value > 0)
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  const max = Math.max(1, ...rows.map(([, value]) => value));
+  for (const [label, value] of rows) {
+    const row = document.createElement('div');
+    row.className = 'analysis-row';
+    const name = document.createElement('span');
+    name.textContent = label;
+    const total = document.createElement('strong');
+    total.textContent = exact.format(value);
+    const track = document.createElement('i');
+    track.className = 'analysis-track';
+    const fill = document.createElement('b');
+    fill.className = 'analysis-fill';
+    fill.style.width = `${value / max * 100}%`;
+    track.append(fill);
+    row.append(name, total, track);
+    container.append(row);
+  }
+  if (!rows.length) {
+    const empty = document.createElement('p');
+    empty.className = 'muted';
+    empty.textContent = '暂无本地数据';
+    container.append(empty);
+  }
+}
+
+function renderAnalysisOverview() {
+  const history = state.stats?.history || {};
   const summary = history.summary || {};
+  renderHeatmap();
+  renderTrendChart('trend-chart');
   setText('active-days', exact.format(number(summary.activeDays)));
+  setText('current-streak', exact.format(number(summary.currentStreak)));
+  setText('longest-streak', exact.format(number(summary.longestStreak)));
   setText('peak-day', format.format(number(summary.peakDayTokens)));
+  setText('history-messages', exact.format(number(summary.messages)));
   setText('favorite-model', summary.favoriteModel || '—');
+}
+
+function renderAnalysisModels() {
+  const models = state.stats?.periods?.allTime?.models || {};
+  renderAnalysisRows('analysis-model-list', Object.entries(models));
+}
+
+function renderAnalysisProjects() {
+  const projects = state.stats?.periods?.allTime?.projects || {};
+  const entries = Object.entries(projects).map(([key, project]) => [
+    project?.label || key,
+    project?.tokens
+  ]);
+  renderAnalysisRows('analysis-project-list', entries);
+}
+
+function renderAnalysisDates() {
+  renderTrendChart('daily-trend-chart');
+  const monthly = state.stats?.history?.monthly || [];
+  renderAnalysisRows('monthly-list', monthly.map((month) => [month.month, month.tokens]));
+}
+
+function renderAnalysis() {
+  const sections = {
+    overview: 'analysis-overview',
+    models: 'analysis-models',
+    projects: 'analysis-projects',
+    dates: 'analysis-dates'
+  };
+  for (const [key, id] of Object.entries(sections)) {
+    byId(id).hidden = key !== state.analysisTab;
+  }
+  document.querySelectorAll('.analysis-tab').forEach((button) => {
+    button.classList.toggle('active', button.dataset.analysis === state.analysisTab);
+  });
+  if (state.analysisTab === 'overview') renderAnalysisOverview();
+  else if (state.analysisTab === 'models') renderAnalysisModels();
+  else if (state.analysisTab === 'projects') renderAnalysisProjects();
+  else renderAnalysisDates();
 }
 
 function render({ preserveTotal = false } = {}) {
   if (!preserveTotal) clearTotalUpdates();
   const stats = state.stats || {};
-  const isTrends = state.period === 'trends';
-  byId('summary-view').hidden = isTrends;
-  byId('trends-view').hidden = !isTrends;
+  const isAnalysis = state.view === 'analysis';
+  byId('view-select').value = state.view;
+  byId('overview-tabs').hidden = isAnalysis;
+  byId('analysis-tabs').hidden = !isAnalysis;
+  byId('summary-view').hidden = isAnalysis;
+  byId('analysis-view').hidden = !isAnalysis;
   document.querySelectorAll('.period').forEach((button) => {
     button.classList.toggle('active', button.dataset.period === state.period);
   });
   byId('error').hidden = !stats.error;
   byId('error').textContent = stats.error || '';
-  if (isTrends) {
-    renderTrend();
+  if (isAnalysis) {
+    renderAnalysis();
     return;
   }
   const period = stats.periods?.[state.period] || {};
@@ -224,7 +347,7 @@ function render({ preserveTotal = false } = {}) {
 function applyStats(stats, { animate = false } = {}) {
   const previous = components(state.stats?.periods?.[state.period]).total;
   const next = components(stats?.periods?.[state.period]).total;
-  const canAnimate = animate && state.stats && state.period !== 'trends';
+  const canAnimate = animate && state.stats && state.view === 'overview';
   const totalTransition = canAnimate
     ? tokenTransition.positiveDelta(previous, next)
     : null;
@@ -271,6 +394,16 @@ async function updateSettings(patch) {
 document.querySelectorAll('.period').forEach((button) => {
   button.addEventListener('click', () => {
     state.period = button.dataset.period;
+    render();
+  });
+});
+byId('view-select').addEventListener('change', (event) => {
+  state.view = event.target.value === 'analysis' ? 'analysis' : 'overview';
+  render();
+});
+document.querySelectorAll('.analysis-tab').forEach((button) => {
+  button.addEventListener('click', () => {
+    state.analysisTab = button.dataset.analysis;
     render();
   });
 });
