@@ -2,10 +2,13 @@
 
 const api = window.codexOffline;
 const modelRows = window.codexModelRows;
+const tokenTransition = window.codexTokenTransition;
 const state = { stats: null, period: 'today', settings: null };
 const byId = (id) => document.getElementById(id);
 const format = new Intl.NumberFormat('zh-CN', { notation: 'compact', maximumFractionDigits: 1 });
 const exact = new Intl.NumberFormat('zh-CN');
+const totalTransitionTimers = new Set();
+let totalTransitionFrame = null;
 
 function number(value) {
   const parsed = Number(value);
@@ -32,6 +35,57 @@ function reasoning(period) {
 
 function setText(id, value) {
   byId(id).textContent = value;
+}
+
+function clearTotalTransition() {
+  for (const timer of totalTransitionTimers) clearTimeout(timer);
+  totalTransitionTimers.clear();
+  if (totalTransitionFrame !== null) cancelAnimationFrame(totalTransitionFrame);
+  totalTransitionFrame = null;
+  const delta = byId('total-delta');
+  delta.hidden = true;
+  delta.classList.remove('is-visible');
+  byId('total').classList.remove('token-total-settling');
+  byId('compact-total').classList.remove('token-total-settling');
+}
+
+function setTotalValues(total) {
+  setText('total', exact.format(total));
+  setText('compact-total', format.format(total));
+}
+
+function animateTotal(transition) {
+  clearTotalTransition();
+  setTotalValues(transition.from);
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    setTotalValues(transition.to);
+    return;
+  }
+
+  const delta = byId('total-delta');
+  delta.textContent = `+${exact.format(transition.delta)}`;
+  delta.hidden = false;
+  totalTransitionFrame = requestAnimationFrame(() => {
+    totalTransitionFrame = null;
+    delta.classList.add('is-visible');
+    setText('compact-total', `${format.format(transition.from)} +${format.format(transition.delta)}`);
+  });
+
+  const settleTimer = setTimeout(() => {
+    totalTransitionTimers.delete(settleTimer);
+    delta.classList.remove('is-visible');
+    setTotalValues(transition.to);
+    byId('total').classList.add('token-total-settling');
+    byId('compact-total').classList.add('token-total-settling');
+  }, 850);
+  totalTransitionTimers.add(settleTimer);
+
+  const cleanupTimer = setTimeout(() => {
+    totalTransitionTimers.delete(cleanupTimer);
+    clearTotalTransition();
+    setTotalValues(transition.to);
+  }, 1100);
+  totalTransitionTimers.add(cleanupTimer);
 }
 
 function renderModels(period) {
@@ -105,7 +159,7 @@ function renderTrend() {
   setText('favorite-model', summary.favoriteModel || '—');
 }
 
-function render() {
+function render({ totalTransition = null } = {}) {
   const stats = state.stats || {};
   const isTrends = state.period === 'trends';
   byId('summary-view').hidden = isTrends;
@@ -121,8 +175,11 @@ function render() {
   }
   const period = stats.periods?.[state.period] || {};
   const values = components(period);
-  setText('total', exact.format(values.total));
-  setText('compact-total', format.format(values.total));
+  if (totalTransition) animateTotal(totalTransition);
+  else {
+    clearTotalTransition();
+    setTotalValues(values.total);
+  }
   setText('input', format.format(values.input));
   setText('cached', format.format(values.cached));
   setText('output', format.format(values.output));
@@ -133,6 +190,16 @@ function render() {
   setText('updated', stats.collectedAt ? `更新于 ${new Date(stats.collectedAt).toLocaleTimeString('zh-CN')}` : '等待本地日志');
   renderModels(period);
   renderSessions(period);
+}
+
+function applyStats(stats, { animate = false } = {}) {
+  const previous = components(state.stats?.periods?.[state.period]).total;
+  const next = components(stats?.periods?.[state.period]).total;
+  const totalTransition = animate && state.stats && state.period !== 'trends'
+    ? tokenTransition.positiveDelta(previous, next)
+    : null;
+  state.stats = stats;
+  render({ totalTransition });
 }
 
 function applyTheme(theme) {
@@ -177,8 +244,8 @@ document.querySelectorAll('.period').forEach((button) => {
 byId('refresh').addEventListener('click', async () => {
   byId('refresh').disabled = true;
   try {
-    state.stats = await api.stats.refresh();
-    render();
+    const stats = await api.stats.refresh();
+    if (stats.collectedAt !== state.stats?.collectedAt) applyStats(stats, { animate: true });
   } finally {
     byId('refresh').disabled = false;
   }
@@ -224,11 +291,9 @@ byId('expand').addEventListener('click', async () => {
 });
 
 api.stats.onChanged((stats) => {
-  state.stats = stats;
-  render();
+  applyStats(stats, { animate: true });
 });
 
 Promise.all([api.stats.get(), loadSettings()]).then(([stats]) => {
-  state.stats = stats;
-  render();
+  applyStats(stats);
 });

@@ -44,7 +44,10 @@
       <section id="summary-view">
         <div class="hero">
           <span>总 token</span>
-          <strong id="total">0</strong>
+          <div class="total-line">
+            <strong id="total">0</strong>
+            <em id="total-delta" class="total-delta" hidden>+0</em>
+          </div>
           <small id="updated">等待本地日志</small>
         </div>
         <div class="metrics">
@@ -125,6 +128,7 @@
     </section>
   </main>
   <script src="./modelRows.js"></script>
+  <script src="./tokenTransition.js"></script>
   <script src="./app.js"></script>
 </body>
 </html>

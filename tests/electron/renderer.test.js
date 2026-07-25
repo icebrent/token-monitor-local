@@ -10,11 +10,14 @@ const root = path.join(__dirname, '..', '..');
 const html = fs.readFileSync(path.join(root, 'src/electron/renderer/index.html'), 'utf8');
 const script = fs.readFileSync(path.join(root, 'src/electron/renderer/app.js'), 'utf8');
 const modelRowsScript = fs.readFileSync(path.join(root, 'src/electron/renderer/modelRows.js'), 'utf8');
+const tokenTransitionScript = fs.readFileSync(path.join(root, 'src/electron/renderer/tokenTransition.js'), 'utf8');
 const styles = fs.readFileSync(path.join(root, 'src/electron/renderer/styles.css'), 'utf8');
 const main = fs.readFileSync(path.join(root, 'src/electron/main.js'), 'utf8');
 const preload = fs.readFileSync(path.join(root, 'src/electron/preload.js'), 'utf8');
 const modelRowsContext = { window: {} };
 vm.runInNewContext(modelRowsScript, modelRowsContext);
+const tokenTransitionContext = { window: {} };
+vm.runInNewContext(tokenTransitionScript, tokenTransitionContext);
 
 test('renderer exposes only local stats, settings, export, app, and window surfaces', () => {
   assert.match(preload, /exposeInMainWorld\('codexOffline'/);
@@ -70,6 +73,27 @@ test('model rows show six models directly and aggregate overflow into the sixth 
   assert.equal(JSON.stringify(seven), JSON.stringify([
     ['a', 70], ['b', 60], ['c', 50], ['d', 40], ['e', 30], ['其他', 30]
   ]));
+});
+
+test('total token transitions expose only positive increments', () => {
+  const transition = tokenTransitionContext.window.codexTokenTransition;
+  assert.equal(JSON.stringify(transition.positiveDelta(12000, 12860)), JSON.stringify({
+    from: 12000,
+    to: 12860,
+    delta: 860
+  }));
+  assert.equal(transition.positiveDelta(12860, 12860), null);
+  assert.equal(transition.positiveDelta(12860, 100), null);
+  assert.equal(transition.positiveDelta(undefined, 100), null);
+});
+
+test('total token increments animate in full and compact modes with reduced-motion support', () => {
+  assert.match(html, /id="total-delta"/);
+  assert.match(html, /src="\.\/tokenTransition\.js"/);
+  assert.match(script, /tokenTransition\.positiveDelta/);
+  assert.match(script, /prefers-reduced-motion:\s*reduce/);
+  assert.match(script, /compact-total/);
+  assert.match(styles, /\.total-delta\.is-visible/);
 });
 
 test('settings use a bottom sheet with modal dismissal controls', () => {
