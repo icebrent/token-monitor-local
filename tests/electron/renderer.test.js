@@ -36,6 +36,12 @@ test('local UI keeps periods, trends, tray hide, floating collapse, and export c
   assert.match(script, /api\.window\.expand/);
 });
 
+test('full window opens at the readable default size with the current product heading', () => {
+  assert.match(main, /const DEFAULT_BOUNDS = \{ width: 450, height: 900 \}/);
+  assert.match(html, /<h1>Codex Token Monitor<\/h1>/);
+  assert.doesNotMatch(html, /仅本机日志/);
+});
+
 test('floating mode keeps a drag region and restores the previous expanded bounds', () => {
   assert.match(styles, /\.compact-drag-region[\s\S]*-webkit-app-region:\s*drag/);
   assert.match(styles, /\.compact-expand[\s\S]*-webkit-app-region:\s*no-drag/);
