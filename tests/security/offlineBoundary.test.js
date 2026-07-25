@@ -57,3 +57,25 @@ test('renderer cannot provide a scan root or arbitrary openPath target', () => {
   assert.match(preload, /openDirectory:\s*\(\)/);
   assert.match(preload, /openLatest:\s*\(\)/);
 });
+
+test('production dependency and package surfaces contain no removed integration', () => {
+  const packageJson = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+  assert.deepEqual(packageJson.dependencies, { chokidar: '^4.0.3' });
+  assert.equal(packageJson.build.publish, undefined);
+  const serialized = JSON.stringify({
+    scripts: packageJson.scripts,
+    dependencies: packageJson.dependencies,
+    files: packageJson.build.files
+  }).toLowerCase();
+  for (const forbidden of [
+    'electron-updater', 'undici', 'discord', 'tokscale', 'credential',
+    'provider', 'sync:worker', 'src/hub', 'src/agent', 'worker/'
+  ]) assert.doesNotMatch(serialized, new RegExp(forbidden));
+});
+
+test('renderer session is memory-only and is not a persistent cookie partition', () => {
+  const main = fs.readFileSync(path.join(root, 'src/electron/main.js'), 'utf8');
+  assert.match(main, /SESSION_PARTITION = 'codex-offline-memory'/);
+  assert.doesNotMatch(main, /persist:/);
+  assert.match(main, /fromPartition\(SESSION_PARTITION, \{ cache: false \}\)/);
+});

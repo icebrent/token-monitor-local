@@ -2,25 +2,19 @@
   "name": "codex-offline-monitor",
   "productName": "Codex Offline Monitor",
   "version": "0.34.0",
-  "description": "Live token & cost widget for Claude Code, Codex & Hermes — local-first, optional multi-device sync.",
+  "description": "A strictly local, offline Electron monitor for Codex JSONL session logs.",
   "main": "src/electron/main.js",
   "scripts": {
     "start": "electron .",
-    "hub": "node src/hub/server.js",
-    "agent": "node src/agent/agent.js",
-    "agent:once": "node src/agent/agent.js --once",
     "widget": "electron .",
     "dev": "electron .",
     "test": "node --test \"tests/**/*.test.js\"",
-    "sync:worker": "node scripts/sync-worker-shared.js",
     "pack": "electron-builder --dir",
     "dist:mac": "electron-builder --mac --arm64 --publish never",
     "dist:mac:x64": "electron-builder --mac --x64 --publish never",
     "dist:win": "electron-builder --win --x64 --publish never",
     "dist:win:dir": "electron-builder --win dir --x64 --publish never",
-    "dist:win:prepackaged": "electron-builder --prepackaged dist/win-unpacked --win nsis portable --x64 --publish never",
     "dist:linux": "electron-builder --linux --x64 --publish never",
-    "verify:release-artifact-names": "node scripts/verify-updater-artifact-names.js dist",
     "lint": "eslint .",
     "verify": "npm run lint && npm test"
   },
@@ -33,18 +27,12 @@
     "files": [
       "src/electron/**/*",
       "src/shared/**/*",
-      "src/hub/**/*",
       "assets/icon.png",
-      "assets/icons/**/*",
+      "assets/icon-win.png",
       "package.json"
     ],
-    "asarUnpack": [
-      "node_modules/@tokscale/**/*",
-      "node_modules/tokscale/**/*",
-      "node_modules/koffi/**/*"
-    ],
     "mac": {
-      "artifactName": "Token-Monitor-${version}-${arch}.${ext}",
+      "artifactName": "Codex-Offline-Monitor-${version}-${arch}.${ext}",
       "target": [
         "dmg",
         "zip"
@@ -71,14 +59,10 @@
           ]
         }
       ],
-      "icon": "assets/icon-win.png",
-      "verifyUpdateCodeSignature": true,
-      "signtoolOptions": {
-        "publisherName": "SignPath Foundation"
-      }
+      "icon": "assets/icon-win.png"
     },
     "linux": {
-      "artifactName": "Token-Monitor-${version}.${ext}",
+      "artifactName": "Codex-Offline-Monitor-${version}.${ext}",
       "target": [
         {
           "target": "AppImage",
@@ -89,58 +73,28 @@
       ],
       "category": "Development",
       "icon": "assets/icon.png",
-      "synopsis": "Live token & cost widget for AI coding tools",
-      "description": "Real-time token, cost, and AI limits widget with multi-device sync for Claude Code, Codex, OpenCode and more."
+      "synopsis": "Offline local Codex usage monitor",
+      "description": "Reads Codex JSONL session logs locally without network access."
     },
     "nsis": {
-      "artifactName": "Token-Monitor-Setup-${version}.${ext}"
+      "artifactName": "Codex-Offline-Monitor-Setup-${version}.${ext}"
     },
     "portable": {
-      "artifactName": "Token-Monitor-${version}.${ext}"
-    },
-    "publish": [
-      {
-        "provider": "github",
-        "owner": "Javis603",
-        "repo": "token-monitor"
-      }
-    ]
+      "artifactName": "Codex-Offline-Monitor-${version}.${ext}"
+    }
   },
   "keywords": [
-    "tokscale",
-    "claude-code",
     "codex",
-    "hermes",
-    "token-monitor",
     "token-usage",
-    "cost-tracking",
-    "llm",
-    "ai-tools",
     "electron",
     "desktop-widget",
-    "local-first",
-    "self-hosted"
+    "offline",
+    "local-only"
   ],
-  "author": "Javis",
+  "author": "icebrent",
   "license": "MIT",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/Javis603/token-monitor.git"
-  },
-  "homepage": "https://github.com/Javis603/token-monitor#readme",
-  "bugs": {
-    "url": "https://github.com/Javis603/token-monitor/issues"
-  },
   "dependencies": {
-    "@xhayper/discord-rpc": "^1.3.4",
-    "chokidar": "^4.0.3",
-    "dotenv": "^17.4.2",
-    "electron-updater": "6.8.9",
-    "koffi": "^3.1.2",
-    "semver": "^7.8.5",
-    "tar": "^7.5.21",
-    "tokscale": "^4.6.1",
-    "undici": "^7.28.0"
+    "chokidar": "^4.0.3"
   },
   "devDependencies": {
     "@eslint/compat": "^2.1.0",

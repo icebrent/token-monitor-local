@@ -51,8 +51,9 @@ Unknown record and event types are counted in diagnostics and otherwise ignored.
 Collection derives state from the current complete file, so an append, truncate,
 or rewrite cannot double-count a prior in-memory cursor. The runtime cache may
 reuse an unchanged parsed file, but any size or modification-time change causes
-that file to be parsed again from byte zero. Deleted sessions may survive only
-in the application's own explicitly documented local history archive.
+that file to be parsed again from byte zero. Deleted session files are pruned
+from the cache and disappear from the next aggregate; no second usage archive
+is retained.
 
 Malformed and oversized lines are skipped and surfaced through diagnostics. A
 cumulative counter decrease is treated as a correction boundary: the new

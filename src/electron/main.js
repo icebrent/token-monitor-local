@@ -20,6 +20,7 @@ const RENDERER_HTML = path.join(__dirname, 'renderer', 'index.html');
 const PRELOAD = path.join(__dirname, 'preload.js');
 const DEFAULT_BOUNDS = { width: 380, height: 680 };
 const SETTINGS_KEYS = new Set(['alwaysOnTop', 'opacity', 'theme', 'exportDir']);
+const SESSION_PARTITION = 'codex-offline-memory';
 
 app.setName(APP_NAME);
 app.setPath('userData', path.join(app.getPath('appData'), APP_NAME));
@@ -169,6 +170,7 @@ function createWindow() {
       nodeIntegration: false,
       sandbox: true,
       webSecurity: true,
+      partition: SESSION_PARTITION,
       allowRunningInsecureContent: false,
       webviewTag: false,
       devTools: false,
@@ -328,6 +330,7 @@ app.whenReady().then(() => {
   fs.mkdirSync(app.getPath('userData'), { recursive: true });
   registerAllowedOpenPath(app.getPath('userData'));
   installOfflineSessionPolicy(session.defaultSession);
+  installOfflineSessionPolicy(session.fromPartition(SESSION_PARTITION, { cache: false }));
   roots = fixedCodexRoots();
   const savedExportDir = readSettings().exportDir;
   if (savedExportDir) {
