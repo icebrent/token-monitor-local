@@ -18,8 +18,8 @@ const APP_NAME = 'Codex Offline Monitor';
 const APP_ICON = path.join(__dirname, '..', '..', 'assets', 'icon.png');
 const RENDERER_HTML = path.join(__dirname, 'renderer', 'index.html');
 const PRELOAD = path.join(__dirname, 'preload.js');
-const DEFAULT_BOUNDS = { width: 450, height: 900 };
-const NORMAL_MINIMUM_SIZE = { width: 320, height: 480 };
+const DEFAULT_BOUNDS = { width: 450, height: 1100 };
+const NORMAL_MINIMUM_SIZE = { ...DEFAULT_BOUNDS };
 const COMPACT_SIZE = { width: 176, height: 64 };
 const SETTINGS_KEYS = new Set(['alwaysOnTop', 'opacity', 'theme', 'exportDir']);
 const SESSION_PARTITION = 'codex-offline-memory';
@@ -35,7 +35,7 @@ let quitting = false;
 let roots = null;
 let latestStats = null;
 let compactMode = false;
-let expandedBounds = { ...DEFAULT_BOUNDS };
+let expandedPosition = null;
 const parseCache = createCodexParseCache();
 const allowedOpenPaths = new Set();
 
@@ -314,14 +314,17 @@ function registerIpc() {
   });
   ipcMain.handle('window:collapse', (event) => {
     requireMainSender(event);
-    if (!compactMode) expandedBounds = mainWindow.getBounds();
+    if (!compactMode) {
+      const { x, y } = mainWindow.getBounds();
+      expandedPosition = { x, y };
+    }
     compactMode = true;
     mainWindow.setMinimumSize(COMPACT_SIZE.width, COMPACT_SIZE.height);
     mainWindow.setSize(COMPACT_SIZE.width, COMPACT_SIZE.height, true);
   });
   ipcMain.handle('window:expand', (event) => {
     requireMainSender(event);
-    mainWindow.setBounds(expandedBounds, true);
+    mainWindow.setBounds({ ...DEFAULT_BOUNDS, ...expandedPosition }, true);
     mainWindow.setMinimumSize(NORMAL_MINIMUM_SIZE.width, NORMAL_MINIMUM_SIZE.height);
     compactMode = false;
   });

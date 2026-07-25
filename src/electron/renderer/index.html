@@ -38,49 +38,65 @@
       <button class="period" data-period="trends" type="button">趋势</button>
     </nav>
 
-    <p id="error" class="error" hidden></p>
+    <div id="content-stage" class="content-stage">
+      <p id="error" class="error" hidden></p>
 
-    <section id="summary-view">
-      <div class="hero">
-        <span>总 token</span>
-        <strong id="total">0</strong>
-        <small id="updated">等待本地日志</small>
-      </div>
-      <div class="metrics">
-        <article><span>输入</span><strong id="input">0</strong></article>
-        <article><span>缓存输入</span><strong id="cached">0</strong></article>
-        <article><span>输出</span><strong id="output">0</strong></article>
-        <article><span>推理</span><strong id="reasoning">0</strong></article>
-        <article><span>会话</span><strong id="sessions">0</strong></article>
-        <article><span>模型</span><strong id="models-count">0</strong></article>
-      </div>
-      <section class="panel">
-        <div class="panel-title"><h2>模型</h2><span id="model-period"></span></div>
-        <div id="models" class="model-list"></div>
-      </section>
-      <section class="panel">
-        <div class="panel-title"><h2>最近会话</h2></div>
-        <div id="recent-sessions" class="session-list"></div>
-      </section>
-    </section>
-
-    <section id="trends-view" hidden>
-      <section class="panel trend-panel">
-        <div class="panel-title"><h2>每日趋势</h2><span>最近 28 个活跃日</span></div>
-        <div id="trend-chart" class="trend-chart" aria-label="每日 token 趋势图"></div>
-      </section>
-      <section class="panel">
-        <div class="panel-title"><h2>历史概览</h2></div>
-        <div class="metrics trend-metrics">
-          <article><span>活跃日</span><strong id="active-days">0</strong></article>
-          <article><span>峰值日</span><strong id="peak-day">0</strong></article>
-          <article><span>常用模型</span><strong id="favorite-model">—</strong></article>
+      <section id="summary-view">
+        <div class="hero">
+          <span>总 token</span>
+          <strong id="total">0</strong>
+          <small id="updated">等待本地日志</small>
         </div>
+        <div class="metrics">
+          <article><span>输入</span><strong id="input">0</strong></article>
+          <article><span>缓存输入</span><strong id="cached">0</strong></article>
+          <article><span>输出</span><strong id="output">0</strong></article>
+          <article><span>推理</span><strong id="reasoning">0</strong></article>
+          <article><span>会话</span><strong id="sessions">0</strong></article>
+          <article><span>模型</span><strong id="models-count">0</strong></article>
+        </div>
+        <section class="panel">
+          <div class="panel-title"><h2>模型</h2><span id="model-period"></span></div>
+          <div id="models" class="model-list"></div>
+        </section>
+        <section class="panel">
+          <div class="panel-title"><h2>最近会话</h2></div>
+          <div id="recent-sessions" class="session-list"></div>
+        </section>
       </section>
-    </section>
 
-    <details class="settings">
-      <summary>本地设置与导出</summary>
+      <section id="trends-view" hidden>
+        <section class="panel trend-panel">
+          <div class="panel-title"><h2>每日趋势</h2><span>最近 28 个活跃日</span></div>
+          <div id="trend-chart" class="trend-chart" aria-label="每日 token 趋势图"></div>
+        </section>
+        <section class="panel">
+          <div class="panel-title"><h2>历史概览</h2></div>
+          <div class="metrics trend-metrics">
+            <article><span>活跃日</span><strong id="active-days">0</strong></article>
+            <article><span>峰值日</span><strong id="peak-day">0</strong></article>
+            <article><span>常用模型</span><strong id="favorite-model">—</strong></article>
+          </div>
+        </section>
+      </section>
+    </div>
+
+    <button id="settings-trigger" class="settings-trigger" type="button" aria-expanded="false" aria-controls="settings-sheet">
+      <span aria-hidden="true">⌃</span>
+      本地设置与导出
+    </button>
+
+    <footer>
+      <span>无账号 · 无凭证 · 无网络</span>
+      <button id="refresh" type="button">刷新</button>
+    </footer>
+
+    <button id="settings-backdrop" class="settings-backdrop" type="button" aria-label="关闭本地设置与导出" hidden></button>
+    <section id="settings-sheet" class="settings-sheet" role="dialog" aria-modal="true" aria-labelledby="settings-title" hidden>
+      <button id="settings-close" class="settings-close" type="button">
+        <span aria-hidden="true">⌄</span>
+        <span id="settings-title">本地设置与导出</span>
+      </button>
       <div class="settings-body">
         <label class="setting-row">
           <span>始终置顶</span>
@@ -106,13 +122,9 @@
         </div>
         <p id="export-status" class="muted">尚未选择导出目录</p>
       </div>
-    </details>
-
-    <footer>
-      <span>无账号 · 无凭证 · 无网络</span>
-      <button id="refresh" type="button">刷新</button>
-    </footer>
+    </section>
   </main>
+  <script src="./modelRows.js"></script>
   <script src="./app.js"></script>
 </body>
 </html>

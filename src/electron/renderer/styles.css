@@ -8,6 +8,7 @@
   --muted: #9ca6b8;
   --accent: #88e0bf;
   --accent-2: #7aa8ff;
+  --sheet-bg: rgba(20, 22, 28, 0.97);
 }
 
 :root[data-theme="light"] {
@@ -19,6 +20,7 @@
   --muted: #667085;
   --accent: #167a61;
   --accent-2: #315fd0;
+  --sheet-bg: rgba(246, 248, 252, 0.98);
 }
 
 * { box-sizing: border-box; }
@@ -51,9 +53,12 @@ button:hover { border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
 button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 2px; }
 
 #app {
+  position: relative;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr) auto auto;
   height: 100%;
   padding: 16px;
-  overflow-y: auto;
+  overflow: hidden;
   border: 1px solid var(--line);
   border-radius: 20px;
   background: var(--bg);
@@ -78,6 +83,11 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .period-tabs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; margin: 18px 0 14px; }
 .period-tabs button { padding: 7px 4px; border-color: transparent; color: var(--muted); font-size: 13px; }
 .period-tabs button.active { color: var(--text); background: var(--panel); border-color: var(--line); }
+
+.content-stage {
+  min-height: 0;
+  overflow: hidden;
+}
 
 .hero { padding: 16px 2px 18px; }
 .hero span, .hero small { display: block; color: var(--muted); font-size: 13px; }
@@ -110,9 +120,54 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .trend-bar:hover { opacity: 1; }
 .trend-metrics { grid-template-columns: repeat(3, 1fr); }
 
-.settings { margin-top: 11px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); }
-.settings summary { padding: 12px 13px; cursor: pointer; font-size: 13px; font-weight: 700; }
-.settings-body { display: grid; gap: 12px; padding: 2px 13px 13px; }
+.settings-trigger, .settings-close {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 12px 13px;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: left;
+}
+.settings-trigger {
+  margin-top: 11px;
+  background: var(--panel);
+}
+.settings-backdrop {
+  position: absolute;
+  z-index: 10;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: inherit;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(2px);
+}
+.settings-sheet {
+  position: absolute;
+  z-index: 11;
+  right: 8px;
+  bottom: 8px;
+  left: 8px;
+  max-height: calc(100% - 16px);
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--sheet-bg);
+  box-shadow: 0 -18px 48px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(28px) saturate(130%);
+  animation: settings-sheet-in 190ms ease-out;
+}
+.settings-close {
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+}
+.settings-body { display: grid; gap: 12px; padding: 13px; }
 .setting-row { display: flex; justify-content: space-between; align-items: center; font-size: 13px; }
 .setting-column { display: grid; gap: 6px; font-size: 13px; }
 .setting-column span { display: flex; justify-content: space-between; }
@@ -125,6 +180,11 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 
 footer { display: flex; justify-content: space-between; align-items: center; padding: 14px 2px 2px; color: var(--muted); font-size: 12px; }
 footer button { padding: 6px 11px; color: var(--text); }
+
+@keyframes settings-sheet-in {
+  from { opacity: 0; transform: translateY(32px); }
+  to { opacity: 1; transform: translateY(0); }
+}
 
 .compact {
   width: 100%;
@@ -165,4 +225,8 @@ footer button { padding: 6px 11px; color: var(--text); }
 
 @media (prefers-reduced-motion: no-preference) {
   .trend-bar, button { transition: opacity 140ms ease, border-color 140ms ease, background 140ms ease; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .settings-sheet { animation: none; }
 }

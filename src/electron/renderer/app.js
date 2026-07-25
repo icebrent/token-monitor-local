@@ -1,6 +1,7 @@
 'use strict';
 
 const api = window.codexOffline;
+const modelRows = window.codexModelRows;
 const state = { stats: null, period: 'today', settings: null };
 const byId = (id) => document.getElementById(id);
 const format = new Intl.NumberFormat('zh-CN', { notation: 'compact', maximumFractionDigits: 1 });
@@ -36,8 +37,8 @@ function setText(id, value) {
 function renderModels(period) {
   const container = byId('models');
   container.replaceChildren();
-  const entries = Object.entries(period?.models || {}).sort((a, b) => b[1] - a[1]);
-  const max = entries[0]?.[1] || 1;
+  const entries = modelRows.from(period?.models);
+  const max = Math.max(1, ...entries.map(([, tokens]) => tokens));
   for (const [model, tokens] of entries) {
     const row = document.createElement('div');
     row.className = 'model-row';
@@ -138,6 +139,20 @@ function applyTheme(theme) {
   document.documentElement.dataset.theme = theme || 'system';
 }
 
+function setSettingsOpen(open, { restoreFocus = true } = {}) {
+  const sheet = byId('settings-sheet');
+  const backdrop = byId('settings-backdrop');
+  const trigger = byId('settings-trigger');
+  trigger.setAttribute('aria-expanded', String(open));
+  sheet.hidden = !open;
+  backdrop.hidden = !open;
+  for (const child of byId('app').children) {
+    if (child !== sheet && child !== backdrop) child.inert = open;
+  }
+  if (open) byId('settings-close').focus();
+  else if (restoreFocus) trigger.focus();
+}
+
 async function loadSettings() {
   state.settings = await api.settings.get();
   byId('always-on-top').checked = state.settings.alwaysOnTop;
@@ -188,9 +203,16 @@ byId('export-now').addEventListener('click', async () => {
 });
 byId('open-export').addEventListener('click', () => api.exports.openDirectory());
 byId('open-user-data').addEventListener('click', () => api.app.openUserData());
+byId('settings-trigger').addEventListener('click', () => setSettingsOpen(true));
+byId('settings-close').addEventListener('click', () => setSettingsOpen(false));
+byId('settings-backdrop').addEventListener('click', () => setSettingsOpen(false));
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && !byId('settings-sheet').hidden) setSettingsOpen(false);
+});
 byId('minimize').addEventListener('click', () => api.window.minimize());
 byId('hide').addEventListener('click', () => api.window.hide());
 byId('collapse').addEventListener('click', async () => {
+  if (!byId('settings-sheet').hidden) setSettingsOpen(false, { restoreFocus: false });
   await api.window.collapse();
   byId('app').hidden = true;
   byId('compact').hidden = false;
