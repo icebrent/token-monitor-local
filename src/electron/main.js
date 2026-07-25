@@ -2,7 +2,7 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
-const { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, shell, Tray } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, session, shell, Tray } = require('electron');
 const chokidar = require('chokidar');
 const { collectCodexUsage, createCodexParseCache } = require('../shared/codexJsonlParser');
 const { exportFileSet } = require('../shared/exporter');
@@ -12,6 +12,7 @@ const {
   comparablePath,
   fixedCodexRoots
 } = require('../shared/localPaths');
+const { installOfflineSessionPolicy, lockWebContents } = require('./offlinePolicy');
 
 const APP_NAME = 'Codex Offline Monitor';
 const APP_ICON = path.join(__dirname, '..', '..', 'assets', 'icon.png');
@@ -167,9 +168,14 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
-      webSecurity: true
+      webSecurity: true,
+      allowRunningInsecureContent: false,
+      webviewTag: false,
+      devTools: false,
+      navigateOnDragDrop: false
     }
   });
+  lockWebContents(mainWindow.webContents, RENDERER_HTML);
   mainWindow.setOpacity(settings.opacity);
   mainWindow.loadFile(RENDERER_HTML);
   mainWindow.once('ready-to-show', () => mainWindow.show());
@@ -255,12 +261,30 @@ function registerIpc() {
     const settings = readSettings();
     if (!settings.exportDir) throw new Error('请先选择导出目录');
     const exportDir = canonicalizeExistingLocalPath(settings.exportDir, { label: 'Export directory' });
+    if (!allowedOpenPaths.has(comparablePath(exportDir))) {
+      throw new Error('Export directory is not in the main-process local allowlist');
+    }
     const generatedAt = new Date().toISOString();
     const files = exportFileSet({ ...publicStats(), generatedAt });
     const written = [];
-    for (const file of files) {
+    for (const [index, file] of files.entries()) {
       const target = path.join(exportDir, file.name);
-      fs.writeFileSync(target, file.contents, 'utf8');
+      try {
+        const targetStat = fs.lstatSync(target);
+        if (!targetStat.isFile() || targetStat.isSymbolicLink()) {
+          throw new Error(`Refusing to replace non-regular export target: ${file.name}`);
+        }
+      } catch (error) {
+        if (error.code !== 'ENOENT') throw error;
+      }
+      const temporary = path.join(exportDir, `.codex-offline-${process.pid}-${index}.tmp`);
+      fs.writeFileSync(temporary, file.contents, { encoding: 'utf8', flag: 'wx' });
+      try {
+        fs.renameSync(temporary, target);
+      } catch (error) {
+        try { fs.unlinkSync(temporary); } catch (_) {}
+        throw error;
+      }
       written.push(registerAllowedOpenPath(target));
     }
     registerAllowedOpenPath(exportDir);
@@ -303,6 +327,7 @@ function registerIpc() {
 app.whenReady().then(() => {
   fs.mkdirSync(app.getPath('userData'), { recursive: true });
   registerAllowedOpenPath(app.getPath('userData'));
+  installOfflineSessionPolicy(session.defaultSession);
   roots = fixedCodexRoots();
   const savedExportDir = readSettings().exportDir;
   if (savedExportDir) {
