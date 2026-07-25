@@ -8,6 +8,7 @@
   --muted: #9ca6b8;
   --accent: #88e0bf;
   --accent-2: #7aa8ff;
+  --control-bg: #202329;
   --sheet-bg: rgba(20, 22, 28, 0.97);
 }
 
@@ -20,6 +21,7 @@
   --muted: #667085;
   --accent: #167a61;
   --accent-2: #315fd0;
+  --control-bg: #ffffff;
   --sheet-bg: rgba(246, 248, 252, 0.98);
 }
 
@@ -83,21 +85,20 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .window-actions button { width: 29px; height: 27px; padding: 0; border: 0; color: var(--muted); font-size: 15px; }
 
 .view-controls { margin: 16px 0 14px; }
-.view-selector {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: center;
-  gap: 9px;
-}
-.view-selector span { color: var(--muted); font-size: 12px; font-weight: 700; }
+.view-selector { display: block; }
 .view-selector select {
+  color-scheme: inherit;
   width: 100%;
   padding: 8px 10px;
   color: var(--text);
   border: 1px solid var(--line);
   border-radius: 10px;
-  background: var(--panel);
+  background: var(--control-bg);
   cursor: pointer;
+}
+.view-selector option {
+  color: var(--text);
+  background: var(--control-bg);
 }
 .secondary-tabs { display: grid; gap: 5px; margin-top: 8px; }
 .period-tabs { grid-template-columns: repeat(3, 1fr); }

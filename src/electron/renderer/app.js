@@ -263,7 +263,6 @@ function renderAnalysisOverview() {
   const history = state.stats?.history || {};
   const summary = history.summary || {};
   renderHeatmap();
-  renderTrendChart('trend-chart');
   setText('active-days', exact.format(number(summary.activeDays)));
   setText('current-streak', exact.format(number(summary.currentStreak)));
   setText('longest-streak', exact.format(number(summary.longestStreak)));

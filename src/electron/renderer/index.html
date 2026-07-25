@@ -33,8 +33,7 @@
 
     <section class="view-controls">
       <label class="view-selector">
-        <span>页面</span>
-        <select id="view-select">
+        <select id="view-select" aria-label="主页面">
           <option value="overview">总览</option>
           <option value="analysis">分析</option>
         </select>
@@ -100,10 +99,6 @@
               <article><span>消息数</span><strong id="history-messages">0</strong></article>
               <article><span>常用模型</span><strong id="favorite-model">—</strong></article>
             </div>
-          </section>
-          <section class="panel trend-panel">
-            <div class="panel-title"><h2>每日趋势</h2><span>最近 28 个活跃日</span></div>
-            <div id="trend-chart" class="trend-chart" aria-label="每日 token 趋势图"></div>
           </section>
         </section>
 

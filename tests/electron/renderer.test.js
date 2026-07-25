@@ -53,6 +53,9 @@ test('local UI keeps overview periods, analysis views, tray hide, floating colla
   assert.match(script, /api\.exports\.write/);
   assert.match(script, /api\.window\.collapse/);
   assert.match(script, /api\.window\.expand/);
+  assert.match(html, /id="view-select" aria-label="主页面"/);
+  assert.doesNotMatch(html, /<span>页面<\/span>|id="trend-chart"/);
+  assert.match(styles, /\.view-selector option\s*\{[\s\S]*background:\s*var\(--control-bg\)/);
   assert.doesNotMatch(html, /data-period="trends"|data-range=/);
   assert.doesNotMatch(html, /<details/);
 });
