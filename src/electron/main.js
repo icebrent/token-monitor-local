@@ -19,6 +19,8 @@ const APP_ICON = path.join(__dirname, '..', '..', 'assets', 'icon.png');
 const RENDERER_HTML = path.join(__dirname, 'renderer', 'index.html');
 const PRELOAD = path.join(__dirname, 'preload.js');
 const DEFAULT_BOUNDS = { width: 380, height: 680 };
+const NORMAL_MINIMUM_SIZE = { width: 320, height: 480 };
+const COMPACT_SIZE = { width: 176, height: 64 };
 const SETTINGS_KEYS = new Set(['alwaysOnTop', 'opacity', 'theme', 'exportDir']);
 const SESSION_PARTITION = 'codex-offline-memory';
 
@@ -32,6 +34,8 @@ let refreshTimer = null;
 let quitting = false;
 let roots = null;
 let latestStats = null;
+let compactMode = false;
+let expandedBounds = { ...DEFAULT_BOUNDS };
 const parseCache = createCodexParseCache();
 const allowedOpenPaths = new Set();
 
@@ -155,8 +159,8 @@ function createWindow() {
   const settings = readSettings();
   mainWindow = new BrowserWindow({
     ...DEFAULT_BOUNDS,
-    minWidth: 320,
-    minHeight: 480,
+    minWidth: NORMAL_MINIMUM_SIZE.width,
+    minHeight: NORMAL_MINIMUM_SIZE.height,
     show: false,
     transparent: true,
     frame: false,
@@ -310,11 +314,16 @@ function registerIpc() {
   });
   ipcMain.handle('window:collapse', (event) => {
     requireMainSender(event);
-    mainWindow.setSize(176, 64, true);
+    if (!compactMode) expandedBounds = mainWindow.getBounds();
+    compactMode = true;
+    mainWindow.setMinimumSize(COMPACT_SIZE.width, COMPACT_SIZE.height);
+    mainWindow.setSize(COMPACT_SIZE.width, COMPACT_SIZE.height, true);
   });
   ipcMain.handle('window:expand', (event) => {
     requireMainSender(event);
-    mainWindow.setSize(DEFAULT_BOUNDS.width, DEFAULT_BOUNDS.height, true);
+    mainWindow.setBounds(expandedBounds, true);
+    mainWindow.setMinimumSize(NORMAL_MINIMUM_SIZE.width, NORMAL_MINIMUM_SIZE.height);
+    compactMode = false;
   });
   ipcMain.on('window:minimize', (event) => {
     requireMainSender(event);
