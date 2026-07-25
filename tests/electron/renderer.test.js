@@ -55,6 +55,7 @@ test('full window opens at the readable default size with the current product he
 });
 
 test('floating mode keeps a drag region and resets to the full window size', () => {
+  assert.match(main, /const COMPACT_SIZE = \{ width: 208, height: 64 \}/);
   assert.match(styles, /\.compact-drag-region[\s\S]*-webkit-app-region:\s*drag/);
   assert.match(styles, /\.compact-expand[\s\S]*-webkit-app-region:\s*no-drag/);
   assert.match(main, /expandedPosition\s*=\s*\{ x, y \}/);

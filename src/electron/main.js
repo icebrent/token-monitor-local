@@ -20,7 +20,7 @@ const RENDERER_HTML = path.join(__dirname, 'renderer', 'index.html');
 const PRELOAD = path.join(__dirname, 'preload.js');
 const DEFAULT_BOUNDS = { width: 450, height: 1100 };
 const NORMAL_MINIMUM_SIZE = { ...DEFAULT_BOUNDS };
-const COMPACT_SIZE = { width: 176, height: 64 };
+const COMPACT_SIZE = { width: 208, height: 64 };
 const SETTINGS_KEYS = new Set(['alwaysOnTop', 'opacity', 'theme', 'exportDir']);
 const SESSION_PARTITION = 'codex-offline-memory';
 
