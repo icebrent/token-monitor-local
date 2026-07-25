@@ -7,8 +7,11 @@ const state = { stats: null, period: 'today', settings: null };
 const byId = (id) => document.getElementById(id);
 const format = new Intl.NumberFormat('zh-CN', { notation: 'compact', maximumFractionDigits: 1 });
 const exact = new Intl.NumberFormat('zh-CN');
+const TOTAL_COALESCE_MS = 1200;
 const totalTransitionTimers = new Set();
 let totalTransitionFrame = null;
+let totalCoalesceTimer = null;
+let queuedTotalTransition = null;
 
 function number(value) {
   const parsed = Number(value);
@@ -49,6 +52,24 @@ function clearTotalTransition() {
   byId('compact-total').classList.remove('token-total-settling');
 }
 
+function clearTotalQueue() {
+  if (totalCoalesceTimer !== null) clearTimeout(totalCoalesceTimer);
+  totalCoalesceTimer = null;
+  queuedTotalTransition = null;
+}
+
+function clearTotalUpdates() {
+  clearTotalQueue();
+  clearTotalTransition();
+}
+
+function hasTotalUpdateInProgress() {
+  return totalCoalesceTimer !== null
+    || queuedTotalTransition !== null
+    || totalTransitionFrame !== null
+    || totalTransitionTimers.size > 0;
+}
+
 function setTotalValues(total) {
   setText('total', exact.format(total));
   setText('compact-total', format.format(total));
@@ -86,6 +107,17 @@ function animateTotal(transition) {
     setTotalValues(transition.to);
   }, 1100);
   totalTransitionTimers.add(cleanupTimer);
+}
+
+function queueTotalTransition(transition) {
+  queuedTotalTransition = tokenTransition.merge(queuedTotalTransition, transition);
+  if (totalCoalesceTimer !== null) return;
+  totalCoalesceTimer = setTimeout(() => {
+    totalCoalesceTimer = null;
+    const nextTransition = queuedTotalTransition;
+    queuedTotalTransition = null;
+    if (nextTransition) animateTotal(nextTransition);
+  }, TOTAL_COALESCE_MS);
 }
 
 function renderModels(period) {
@@ -159,7 +191,8 @@ function renderTrend() {
   setText('favorite-model', summary.favoriteModel || '—');
 }
 
-function render({ totalTransition = null } = {}) {
+function render({ preserveTotal = false } = {}) {
+  if (!preserveTotal) clearTotalUpdates();
   const stats = state.stats || {};
   const isTrends = state.period === 'trends';
   byId('summary-view').hidden = isTrends;
@@ -175,11 +208,7 @@ function render({ totalTransition = null } = {}) {
   }
   const period = stats.periods?.[state.period] || {};
   const values = components(period);
-  if (totalTransition) animateTotal(totalTransition);
-  else {
-    clearTotalTransition();
-    setTotalValues(values.total);
-  }
+  if (!preserveTotal) setTotalValues(values.total);
   setText('input', format.format(values.input));
   setText('cached', format.format(values.cached));
   setText('output', format.format(values.output));
@@ -195,11 +224,15 @@ function render({ totalTransition = null } = {}) {
 function applyStats(stats, { animate = false } = {}) {
   const previous = components(state.stats?.periods?.[state.period]).total;
   const next = components(stats?.periods?.[state.period]).total;
-  const totalTransition = animate && state.stats && state.period !== 'trends'
+  const canAnimate = animate && state.stats && state.period !== 'trends';
+  const totalTransition = canAnimate
     ? tokenTransition.positiveDelta(previous, next)
     : null;
+  const preserveTotal = Boolean(totalTransition)
+    || (canAnimate && next === previous && hasTotalUpdateInProgress());
   state.stats = stats;
-  render({ totalTransition });
+  render({ preserveTotal });
+  if (totalTransition) queueTotalTransition(totalTransition);
 }
 
 function applyTheme(theme) {

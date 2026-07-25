@@ -8,5 +8,10 @@
     return { from, to, delta: to - from };
   }
 
-  window.codexTokenTransition = Object.freeze({ positiveDelta });
+  function merge(current, next) {
+    if (!current) return next;
+    return positiveDelta(current.from, next?.to);
+  }
+
+  window.codexTokenTransition = Object.freeze({ merge, positiveDelta });
 }());

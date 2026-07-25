@@ -85,12 +85,22 @@ test('total token transitions expose only positive increments', () => {
   assert.equal(transition.positiveDelta(12860, 12860), null);
   assert.equal(transition.positiveDelta(12860, 100), null);
   assert.equal(transition.positiveDelta(undefined, 100), null);
+  assert.equal(JSON.stringify(transition.merge(
+    transition.positiveDelta(12000, 12400),
+    transition.positiveDelta(12400, 12860)
+  )), JSON.stringify({
+    from: 12000,
+    to: 12860,
+    delta: 860
+  }));
 });
 
-test('total token increments animate in full and compact modes with reduced-motion support', () => {
+test('total token increments coalesce before animating in full and compact modes', () => {
   assert.match(html, /id="total-delta"/);
   assert.match(html, /src="\.\/tokenTransition\.js"/);
   assert.match(script, /tokenTransition\.positiveDelta/);
+  assert.match(script, /const TOTAL_COALESCE_MS = 1200/);
+  assert.match(script, /tokenTransition\.merge/);
   assert.match(script, /prefers-reduced-motion:\s*reduce/);
   assert.match(script, /compact-total/);
   assert.match(styles, /\.total-delta\.is-visible/);
