@@ -103,6 +103,7 @@ function fixedCodexRoots(options = {}) {
 module.exports = {
   assertCanonicalPathWithin,
   assertLocalPath,
+  canonicalizeExistingLocalPath,
   comparablePath,
   fixedCodexRoots,
   isWindowsNetworkPath,

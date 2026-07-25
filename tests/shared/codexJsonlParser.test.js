@@ -91,6 +91,8 @@ test('period totals attribute individual turns across day and month boundaries',
   assert.equal(result.periods.month.totalTokens, 50);
   assert.equal(result.periods.allTime.totalTokens, 150);
   assert.equal(result.periods.today.sessions['codex:s1'].startedAt, beforeMonth.toISOString());
+  assert.equal(result.history.summary.totalTokens, 150);
+  assert.equal(result.history.daily.reduce((sum, day) => sum + day.tokens, 0), 150);
 });
 
 test('unknown records and models degrade without breaking known usage', () => {

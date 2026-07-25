@@ -2,12 +2,29 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
-const { normalizeHistory, parseGraphResult } = require('./history');
-const { emptyPeriod } = require('./usage');
 const { assertCanonicalPathWithin } = require('./localPaths');
 
 const MAX_JSONL_LINE_BYTES = 8 * 1024 * 1024;
 const UNKNOWN_MODEL = 'unknown';
+
+function emptyPeriod() {
+  return {
+    totalTokens: 0,
+    cacheReadTokens: 0,
+    cacheWriteTokens: 0,
+    outputTokens: 0,
+    clients: {},
+    clientCacheReads: {},
+    clientCacheWrites: {},
+    clientOutputs: {},
+    models: {},
+    modelCacheReads: {},
+    modelCacheWrites: {},
+    modelOutputs: {},
+    clientModels: {},
+    sessions: {}
+  };
+}
 
 function number(value) {
   const parsed = Number(value || 0);
@@ -239,26 +256,53 @@ function graphFromTurns(parsedSessions) {
   for (const parsed of parsedSessions) {
     for (const turn of parsed.turns) {
       const date = localDay(turn.timestamp);
-      const day = days.get(date) || { date, activeTimeMs: 0, clients: [] };
-      day.clients.push({
-        client: 'codex',
-        modelId: turn.model,
-        tokens: {
-          input: turn.tokens.input,
-          output: turn.tokens.output,
-          cacheRead: turn.tokens.cachedInput,
-          cacheWrite: turn.tokens.cacheWrite,
-          reasoning: turn.tokens.reasoning
-        },
-        cost: 0,
-        messages: 1
-      });
+      const day = days.get(date) || {
+        date,
+        tokens: 0,
+        messages: 0,
+        perClient: { codex: { tokens: 0, messages: 0 } },
+        perModel: {}
+      };
+      day.tokens += turn.tokens.total;
+      day.messages += 1;
+      day.perClient.codex.tokens += turn.tokens.total;
+      day.perClient.codex.messages += 1;
+      const model = day.perModel[turn.model] || { tokens: 0 };
+      model.tokens += turn.tokens.total;
+      day.perModel[turn.model] = model;
       days.set(date, day);
     }
   }
-  return parseGraphResult({
-    contributions: [...days.values()].sort((a, b) => a.date.localeCompare(b.date))
-  });
+  return { contributions: [...days.values()].sort((a, b) => a.date.localeCompare(b.date)) };
+}
+
+function normalizeLocalHistory(graphData) {
+  const daily = graphData.contributions || [];
+  const months = new Map();
+  const modelTotals = {};
+  for (const day of daily) {
+    const key = day.date.slice(0, 7);
+    const month = months.get(key) || { month: key, tokens: 0, messages: 0, perModel: {} };
+    month.tokens += day.tokens;
+    month.messages += day.messages;
+    for (const [model, value] of Object.entries(day.perModel)) {
+      month.perModel[model] = { tokens: (month.perModel[model]?.tokens || 0) + value.tokens };
+      modelTotals[model] = (modelTotals[model] || 0) + value.tokens;
+    }
+    months.set(key, month);
+  }
+  const favoriteModel = Object.entries(modelTotals).sort((a, b) => b[1] - a[1])[0]?.[0] || '';
+  return {
+    daily,
+    monthly: [...months.values()],
+    summary: {
+      totalTokens: daily.reduce((sum, day) => sum + day.tokens, 0),
+      activeDays: daily.filter((day) => day.tokens > 0).length,
+      peakDayTokens: daily.reduce((max, day) => Math.max(max, day.tokens), 0),
+      messages: daily.reduce((sum, day) => sum + day.messages, 0),
+      favoriteModel
+    }
+  };
 }
 
 function listCodexJsonlFiles(sessionsRoot, options = {}) {
@@ -350,8 +394,7 @@ function collectCodexUsage(options = {}) {
     }
   }
 
-  const todayKey = localDay(now.toISOString());
-  const history = normalizeHistory(graphFromTurns(parsedSessions), { todayKey });
+  const history = normalizeLocalHistory(graphFromTurns(parsedSessions));
   return { periods, history, diagnostics, parsedSessions };
 }
 
@@ -363,6 +406,7 @@ module.exports = {
   disjointTokens,
   graphFromTurns,
   listCodexJsonlFiles,
+  normalizeLocalHistory,
   parseCodexSessionText,
   periodStarts,
   usageDelta,
