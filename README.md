@@ -4,6 +4,12 @@
 JSONL 会话日志，显示今天、本月、全部、模型、会话和每日趋势，并提供透明悬浮窗、
 系统托盘及本地 JSON/CSV 导出。
 
+展开窗口默认及正常最小尺寸均采用适合 1080p 显示器的 450×900 布局，保证
+Overview 的 All Time 内容无需纵向滚动；仅当显示器工作区高度不足时才会自动缩短。
+Overview 和 Analytics 内容区在小屏降级时仍可纵向滚动。Overview 的模型与最近
+会话最多显示 5 行，溢出项汇总为 `Other`；Analytics 的模型和项目显示 Top 10 加
+`Other`。活跃热力图显示包含当前月在内的最近 6 个日历月，无需横向滚动。
+
 本 fork 不包含云端服务、账号体系、多设备同步、provider limits、自动更新、
 Discord Rich Presence、汇率、服务状态查询或其他 AI 工具采集器。
 

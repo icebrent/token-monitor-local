@@ -3,6 +3,7 @@
 const api = window.codexOffline;
 const analysis = window.codexAnalysis;
 const modelRows = window.codexModelRows;
+const sessionRows = window.codexSessionRows;
 const tokenTransition = window.codexTokenTransition;
 const state = {
   stats: null,
@@ -12,8 +13,8 @@ const state = {
   settings: null
 };
 const byId = (id) => document.getElementById(id);
-const format = new Intl.NumberFormat('zh-CN', { notation: 'compact', maximumFractionDigits: 1 });
-const exact = new Intl.NumberFormat('zh-CN');
+const format = new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 });
+const exact = new Intl.NumberFormat('en-US');
 const TOTAL_COALESCE_MS = 1200;
 const totalTransitionTimers = new Set();
 let totalTransitionFrame = null;
@@ -149,7 +150,7 @@ function renderModels(period) {
   if (!entries.length) {
     const empty = document.createElement('p');
     empty.className = 'muted';
-    empty.textContent = '这个周期暂无模型数据';
+    empty.textContent = 'No model usage in this period';
     container.append(empty);
   }
 }
@@ -157,24 +158,23 @@ function renderModels(period) {
 function renderSessions(period) {
   const container = byId('recent-sessions');
   container.replaceChildren();
-  const sessions = Object.values(period?.sessions || {})
-    .sort((a, b) => String(b.lastUsedAt).localeCompare(String(a.lastUsedAt)))
-    .slice(0, 5);
-  for (const session of sessions) {
+  const rows = sessionRows.from(period?.sessions);
+  for (const session of rows) {
     const row = document.createElement('div');
     row.className = 'session-row';
     const title = document.createElement('span');
-    title.textContent = session.projectLabel || 'Codex session';
+    title.textContent = session.label;
     const meta = document.createElement('small');
-    const model = Object.entries(session.models || {}).sort((a, b) => b[1] - a[1])[0]?.[0] || 'unknown';
-    meta.textContent = `${model} · ${format.format(number(session.totalTokens))}`;
+    meta.textContent = session.isOther
+      ? `${exact.format(session.sessionCount)} sessions · ${format.format(session.tokens)} tokens`
+      : `${session.model} · ${format.format(session.tokens)} tokens`;
     row.append(title, meta);
     container.append(row);
   }
-  if (!sessions.length) {
+  if (!rows.length) {
     const empty = document.createElement('p');
     empty.className = 'muted';
-    empty.textContent = '这个周期暂无会话';
+    empty.textContent = 'No sessions in this period';
     container.append(empty);
   }
 }
@@ -201,7 +201,7 @@ function renderTrendChart(id, points = trendPoints()) {
 
 function renderHeatmap() {
   const daily = state.stats?.history?.daily || [];
-  const model = analysis.rollingYearHeatmap(daily);
+  const model = analysis.rollingSixMonthHeatmap(daily);
   const chart = byId('heatmap-chart');
   chart.replaceChildren();
   chart.style.width = `${model.width}px`;
@@ -213,29 +213,31 @@ function renderHeatmap() {
     element.style.top = `${cell.y}px`;
     element.style.width = `${cell.size}px`;
     element.style.height = `${cell.size}px`;
-    element.title = `${cell.date}: ${exact.format(cell.tokens)} token`;
+    element.title = `${cell.date}: ${exact.format(cell.tokens)} tokens`;
     chart.append(element);
   }
   for (const month of model.monthLabels) {
     const label = document.createElement('span');
     label.className = 'heatmap-month';
     label.style.left = `${month.column * (model.cell + model.gap)}px`;
+    label.style.top = `${model.height + 3}px`;
     label.textContent = month.label.slice(5);
     chart.append(label);
   }
-  const scroller = byId('heatmap-scroll');
-  scroller.scrollLeft = scroller.scrollWidth;
 }
 
-function renderAnalysisRows(id, entries) {
+function renderAnalysisRows(id, entries, { topCount = null } = {}) {
   const container = byId(id);
   container.replaceChildren();
   const rows = entries
     .map(([label, value]) => [String(label || ''), number(value)])
     .filter(([label, value]) => label && value > 0)
     .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
-  const max = Math.max(1, ...rows.map(([, value]) => value));
-  for (const [label, value] of rows) {
+  const visibleRows = Number.isInteger(topCount)
+    ? modelRows.topWithOther(rows, topCount)
+    : rows;
+  const max = Math.max(1, ...visibleRows.map(([, value]) => value));
+  for (const [label, value] of visibleRows) {
     const row = document.createElement('div');
     row.className = 'analysis-row';
     const name = document.createElement('span');
@@ -254,7 +256,7 @@ function renderAnalysisRows(id, entries) {
   if (!rows.length) {
     const empty = document.createElement('p');
     empty.className = 'muted';
-    empty.textContent = '暂无本地数据';
+    empty.textContent = 'No local usage data';
     container.append(empty);
   }
 }
@@ -273,7 +275,7 @@ function renderAnalysisOverview() {
 
 function renderAnalysisModels() {
   const models = state.stats?.periods?.allTime?.models || {};
-  renderAnalysisRows('analysis-model-list', Object.entries(models));
+  renderAnalysisRows('analysis-model-list', Object.entries(models), { topCount: 10 });
 }
 
 function renderAnalysisProjects() {
@@ -282,7 +284,7 @@ function renderAnalysisProjects() {
     project?.label || key,
     project?.tokens
   ]);
-  renderAnalysisRows('analysis-project-list', entries);
+  renderAnalysisRows('analysis-project-list', entries, { topCount: 10 });
 }
 
 function renderAnalysisDates() {
@@ -337,8 +339,8 @@ function render({ preserveTotal = false } = {}) {
   setText('reasoning', format.format(reasoning(period)));
   setText('sessions', exact.format(Object.keys(period.sessions || {}).length));
   setText('models-count', exact.format(Object.keys(period.models || {}).length));
-  setText('model-period', { today: '今天', month: '本月', allTime: '全部' }[state.period]);
-  setText('updated', stats.collectedAt ? `更新于 ${new Date(stats.collectedAt).toLocaleTimeString('zh-CN')}` : '等待本地日志');
+  setText('model-period', { today: 'Today', month: 'This Month', allTime: 'All Time' }[state.period]);
+  setText('updated', stats.collectedAt ? new Date(stats.collectedAt).toLocaleTimeString('en-US') : 'Waiting for local logs');
   renderModels(period);
   renderSessions(period);
 }
@@ -365,11 +367,17 @@ function setSettingsOpen(open, { restoreFocus = true } = {}) {
   const sheet = byId('settings-sheet');
   const backdrop = byId('settings-backdrop');
   const trigger = byId('settings-trigger');
+  const triggerLabel = open ? 'Close Local Settings & Export' : 'Open Local Settings & Export';
   trigger.setAttribute('aria-expanded', String(open));
+  trigger.setAttribute('aria-label', triggerLabel);
+  trigger.title = triggerLabel;
   sheet.hidden = !open;
   backdrop.hidden = !open;
   for (const child of byId('app').children) {
-    if (child !== sheet && child !== backdrop) child.inert = open;
+    if (child !== sheet && child !== backdrop && !child.classList.contains('titlebar')) child.inert = open;
+  }
+  for (const child of document.querySelectorAll('.titlebar > :not(.window-actions), .window-actions > :not(#settings-trigger)')) {
+    child.inert = open;
   }
   if (open) byId('settings-close').focus();
   else if (restoreFocus) trigger.focus();
@@ -382,7 +390,7 @@ async function loadSettings() {
   setText('opacity-value', `${byId('opacity').value}%`);
   byId('theme').value = state.settings.theme;
   applyTheme(state.settings.theme);
-  if (state.settings.exportDir) setText('export-status', `导出目录：${state.settings.exportDir}`);
+  if (state.settings.exportDir) setText('export-status', `Export directory: ${state.settings.exportDir}`);
 }
 
 async function updateSettings(patch) {
@@ -423,19 +431,19 @@ byId('opacity').addEventListener('change', (event) => updateSettings({ opacity: 
 byId('theme').addEventListener('change', (event) => updateSettings({ theme: event.target.value }));
 byId('choose-export').addEventListener('click', async () => {
   const selected = await api.exports.chooseDirectory();
-  if (selected) setText('export-status', `导出目录：${selected}`);
+  if (selected) setText('export-status', `Export directory: ${selected}`);
 });
 byId('export-now').addEventListener('click', async () => {
   try {
     const result = await api.exports.write();
-    setText('export-status', `已生成：${result.files.join('、')}`);
+    setText('export-status', `Generated: ${result.files.join(', ')}`);
   } catch (error) {
     setText('export-status', error.message);
   }
 });
 byId('open-export').addEventListener('click', () => api.exports.openDirectory());
 byId('open-user-data').addEventListener('click', () => api.app.openUserData());
-byId('settings-trigger').addEventListener('click', () => setSettingsOpen(true));
+byId('settings-trigger').addEventListener('click', () => setSettingsOpen(byId('settings-sheet').hidden));
 byId('settings-close').addEventListener('click', () => setSettingsOpen(false));
 byId('settings-backdrop').addEventListener('click', () => setSettingsOpen(false));
 document.addEventListener('keydown', (event) => {

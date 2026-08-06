@@ -92,16 +92,20 @@
     };
   }
 
-  function rollingYearHeatmap(daily, options) {
-    const settings = Object.assign({ endDate: localDayKey(), cell: 8, gap: 3 }, options || {});
+  function rollingSixMonthHeatmap(daily, options) {
+    const settings = Object.assign({ endDate: localDayKey(), cell: 10, gap: 4 }, options || {});
     const endDate = String(settings.endDate).slice(0, 10);
     const end = new Date(`${endDate}T00:00:00Z`);
     const startDate = new Date(Date.UTC(
       end.getUTCFullYear(),
-      end.getUTCMonth() - 11,
+      end.getUTCMonth() - 5,
       1
     )).toISOString().slice(0, 10);
-    const rows = computeHeatmapIntensities(daily);
+    const visibleDays = (Array.isArray(daily) ? daily : []).filter((day) => {
+      const key = String(day?.date || '').slice(0, 10);
+      return key >= startDate && key <= endDate;
+    });
+    const rows = computeHeatmapIntensities(visibleDays);
     return contributionHeatmap(rows, {
       cell: settings.cell,
       gap: settings.gap,
@@ -139,7 +143,7 @@
     computeHeatmapIntensities,
     contributionHeatmap,
     localDayKey,
-    rollingYearHeatmap,
+    rollingSixMonthHeatmap,
     sparklinePreview
   };
 }));

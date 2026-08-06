@@ -59,7 +59,7 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 #app {
   position: relative;
   display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr) auto auto;
+  grid-template-rows: auto auto minmax(0, 1fr);
   height: 100%;
   padding: 16px;
   overflow: hidden;
@@ -73,18 +73,17 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .titlebar {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
+  align-items: center;
   -webkit-app-region: drag;
 }
 
-.titlebar h1 { margin: 2px 0 0; font-size: 22px; letter-spacing: -0.03em; }
-.eyebrow { margin: 0; font-size: 12px; font-weight: 800; letter-spacing: 0.14em; color: var(--muted); }
+.titlebar-title { margin: 0; font-size: 14px; letter-spacing: -0.01em; }
 .live-dot { display: inline-block; width: 7px; height: 7px; margin-right: 5px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 12px var(--accent); }
 
 .window-actions { display: flex; gap: 5px; -webkit-app-region: no-drag; }
 .window-actions button { width: 29px; height: 27px; padding: 0; border: 0; color: var(--muted); font-size: 15px; }
 
-.view-controls { margin: 16px 0 14px; }
+.view-controls { margin: 12px 0 10px; }
 .view-selector { display: block; }
 .view-selector select {
   color-scheme: inherit;
@@ -111,8 +110,18 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
   overflow: hidden;
 }
 
-.hero { padding: 16px 2px 18px; }
-.hero span, .hero small { display: block; color: var(--muted); font-size: 13px; }
+.hero { padding: 9px 2px 11px; }
+.hero-labels { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.hero-labels span { color: var(--muted); font-size: 13px; }
+.updated-line { display: flex; min-width: 0; align-items: baseline; gap: 6px; }
+.updated-line small {
+  overflow: hidden;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .hero strong { display: block; margin: 3px 0; font-size: clamp(34px, 11vw, 46px); letter-spacing: -0.055em; }
 .total-line { display: flex; min-width: 0; align-items: baseline; gap: 10px; }
 .total-line strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -142,8 +151,8 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .metrics span { display: block; overflow: hidden; color: var(--muted); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
 .metrics strong { display: block; margin-top: 5px; overflow: hidden; font-size: 16px; text-overflow: ellipsis; }
 
-.panel { margin-top: 11px; padding: 13px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); }
-.panel-title { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; }
+.panel { margin-top: 7px; padding: 12px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); }
+.panel-title { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 9px; }
 .panel-title h2 { margin: 0; font-size: 15px; }
 .panel-title span { color: var(--muted); font-size: 12px; }
 
@@ -163,7 +172,7 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .trend-bar { flex: 1 1 0; min-width: 2px; border-radius: 3px 3px 1px 1px; background: linear-gradient(180deg, var(--accent), var(--accent-2)); opacity: 0.85; }
 .trend-bar:hover { opacity: 1; }
 
-.analysis-view {
+#summary-view, .analysis-view {
   height: 100%;
   padding-right: 2px;
   overflow-x: hidden;
@@ -175,10 +184,9 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .heatmap-scroll {
   width: 100%;
   padding: 2px 0 8px;
-  overflow-x: auto;
-  scrollbar-width: thin;
+  overflow-x: hidden;
 }
-.heatmap-chart { position: relative; min-height: 95px; }
+.heatmap-chart { position: relative; min-height: 114px; margin: 0 auto; }
 .heatmap-cell {
   position: absolute;
   border-radius: 2px;
@@ -190,7 +198,6 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .heatmap-cell.level-4 { background: var(--accent); box-shadow: 0 0 7px color-mix(in srgb, var(--accent) 40%, transparent); }
 .heatmap-month {
   position: absolute;
-  top: 80px;
   color: var(--muted);
   font-size: 10px;
   white-space: nowrap;
@@ -209,7 +216,7 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .analysis-track { grid-column: 1 / -1; height: 4px; overflow: hidden; border-radius: 4px; background: var(--line); }
 .analysis-fill { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--accent), var(--accent-2)); }
 
-.settings-trigger, .settings-close {
+.settings-close {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -219,10 +226,7 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
   font-weight: 700;
   text-align: left;
 }
-.settings-trigger {
-  margin-top: 11px;
-  background: var(--panel);
-}
+#settings-trigger { position: relative; z-index: 12; }
 .settings-backdrop {
   position: absolute;
   z-index: 10;
@@ -239,14 +243,14 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
   position: absolute;
   z-index: 11;
   right: 8px;
-  bottom: 8px;
+  top: 8px;
   left: 8px;
   max-height: calc(100% - 16px);
-  overflow: hidden;
+  overflow-y: auto;
   border: 1px solid var(--line);
   border-radius: 16px;
   background: var(--sheet-bg);
-  box-shadow: 0 -18px 48px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.45);
   backdrop-filter: blur(28px) saturate(130%);
   animation: settings-sheet-in 190ms ease-out;
 }
@@ -267,11 +271,8 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .muted { margin: 6px 0; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
 .error { padding: 9px; border: 1px solid #ff6b6b66; border-radius: 10px; color: #ff9d9d; background: #ff3b3b12; font-size: 12px; }
 
-footer { display: flex; justify-content: space-between; align-items: center; padding: 14px 2px 2px; color: var(--muted); font-size: 12px; }
-footer button { padding: 6px 11px; color: var(--text); }
-
 @keyframes settings-sheet-in {
-  from { opacity: 0; transform: translateY(32px); }
+  from { opacity: 0; transform: translateY(-32px); }
   to { opacity: 1; transform: translateY(0); }
 }
 

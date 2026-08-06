@@ -2,7 +2,7 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
-const { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, session, shell, Tray } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, screen, session, shell, Tray } = require('electron');
 const chokidar = require('chokidar');
 const { collectCodexUsage, createCodexParseCache } = require('../shared/codexJsonlParser');
 const { exportFileSet } = require('../shared/exporter');
@@ -18,8 +18,9 @@ const APP_NAME = 'Codex Offline Monitor';
 const APP_ICON = path.join(__dirname, '..', '..', 'assets', 'icon.png');
 const RENDERER_HTML = path.join(__dirname, 'renderer', 'index.html');
 const PRELOAD = path.join(__dirname, 'preload.js');
-const DEFAULT_BOUNDS = { width: 450, height: 1100 };
-const NORMAL_MINIMUM_SIZE = { ...DEFAULT_BOUNDS };
+const PREFERRED_BOUNDS = { width: 450, height: 900 };
+const NORMAL_MINIMUM_SIZE = { ...PREFERRED_BOUNDS };
+const WORK_AREA_MARGIN = 8;
 const COMPACT_SIZE = { width: 208, height: 64 };
 const SETTINGS_KEYS = new Set(['alwaysOnTop', 'opacity', 'theme', 'exportDir']);
 const SESSION_PARTITION = 'codex-offline-memory';
@@ -155,12 +156,41 @@ function applyWindowSettings(settings) {
   mainWindow.setOpacity(settings.opacity);
 }
 
+function normalBoundsForDisplay(display, position = null) {
+  const workArea = display.workArea;
+  const availableWidth = Math.max(1, workArea.width - WORK_AREA_MARGIN * 2);
+  const availableHeight = Math.max(1, workArea.height - WORK_AREA_MARGIN * 2);
+  const width = Math.min(PREFERRED_BOUNDS.width, availableWidth);
+  const height = Math.min(PREFERRED_BOUNDS.height, availableHeight);
+  const bounds = { width, height };
+  if (position) {
+    bounds.x = Math.min(
+      Math.max(position.x, workArea.x + WORK_AREA_MARGIN),
+      workArea.x + workArea.width - width - WORK_AREA_MARGIN
+    );
+    bounds.y = Math.min(
+      Math.max(position.y, workArea.y + WORK_AREA_MARGIN),
+      workArea.y + workArea.height - height - WORK_AREA_MARGIN
+    );
+  }
+  return bounds;
+}
+
+function normalMinimumSize(bounds) {
+  return {
+    width: Math.min(NORMAL_MINIMUM_SIZE.width, bounds.width),
+    height: Math.min(NORMAL_MINIMUM_SIZE.height, bounds.height)
+  };
+}
+
 function createWindow() {
   const settings = readSettings();
+  const initialBounds = normalBoundsForDisplay(screen.getPrimaryDisplay());
+  const initialMinimum = normalMinimumSize(initialBounds);
   mainWindow = new BrowserWindow({
-    ...DEFAULT_BOUNDS,
-    minWidth: NORMAL_MINIMUM_SIZE.width,
-    minHeight: NORMAL_MINIMUM_SIZE.height,
+    ...initialBounds,
+    minWidth: initialMinimum.width,
+    minHeight: initialMinimum.height,
     show: false,
     transparent: true,
     frame: false,
@@ -198,10 +228,10 @@ function createTray() {
   tray = new Tray(image);
   tray.setToolTip(APP_NAME);
   tray.setContextMenu(Menu.buildFromTemplate([
-    { label: '显示 / 隐藏', click: () => toggleWindow() },
-    { label: '刷新本地日志', click: () => collectNow() },
+    { label: 'Show / Hide', click: () => toggleWindow() },
+    { label: 'Refresh Local Logs', click: () => collectNow() },
     { type: 'separator' },
-    { label: '退出', click: () => { quitting = true; app.quit(); } }
+    { label: 'Quit', click: () => { quitting = true; app.quit(); } }
   ]));
   tray.on('click', toggleWindow);
 }
@@ -249,7 +279,7 @@ function registerIpc() {
   ipcMain.handle('export:chooseDirectory', async (event) => {
     requireMainSender(event);
     const result = await dialog.showOpenDialog(mainWindow, {
-      title: '选择本地导出目录',
+      title: 'Choose Local Export Folder',
       properties: ['openDirectory', 'createDirectory']
     });
     if (result.canceled || result.filePaths.length !== 1) return '';
@@ -265,7 +295,7 @@ function registerIpc() {
   ipcMain.handle('export:write', (event) => {
     requireMainSender(event);
     const settings = readSettings();
-    if (!settings.exportDir) throw new Error('请先选择导出目录');
+    if (!settings.exportDir) throw new Error('Choose an export folder first');
     const exportDir = canonicalizeExistingLocalPath(settings.exportDir, { label: 'Export directory' });
     if (!allowedOpenPaths.has(comparablePath(exportDir))) {
       throw new Error('Export directory is not in the main-process local allowlist');
@@ -299,7 +329,7 @@ function registerIpc() {
   ipcMain.handle('export:openDirectory', async (event) => {
     requireMainSender(event);
     const exportDir = readSettings().exportDir;
-    if (!exportDir) throw new Error('尚未选择导出目录');
+    if (!exportDir) throw new Error('No export folder selected');
     await openAllowedPath(exportDir);
   });
   ipcMain.handle('export:openLatest', async (event) => {
@@ -324,8 +354,12 @@ function registerIpc() {
   });
   ipcMain.handle('window:expand', (event) => {
     requireMainSender(event);
-    mainWindow.setBounds({ ...DEFAULT_BOUNDS, ...expandedPosition }, true);
-    mainWindow.setMinimumSize(NORMAL_MINIMUM_SIZE.width, NORMAL_MINIMUM_SIZE.height);
+    const targetPoint = expandedPosition || mainWindow.getBounds();
+    const display = screen.getDisplayNearestPoint({ x: targetPoint.x, y: targetPoint.y });
+    const bounds = normalBoundsForDisplay(display, expandedPosition);
+    const minimum = normalMinimumSize(bounds);
+    mainWindow.setBounds(bounds, true);
+    mainWindow.setMinimumSize(minimum.width, minimum.height);
     compactMode = false;
   });
   ipcMain.on('window:minimize', (event) => {
