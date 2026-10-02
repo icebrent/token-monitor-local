@@ -9,6 +9,7 @@ const byId = (id) => document.getElementById(id);
 const format = new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 2 });
 const exact = new Intl.NumberFormat('en-US');
 const setText = (id, value) => { byId(id).textContent = value; };
+const dayLabel = (date) => new Date(date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 function usageTooltip(node, text) {
   node.title = text;
   node.setAttribute('aria-label', text);
@@ -16,8 +17,13 @@ function usageTooltip(node, text) {
     node.removeAttribute('title');
     const tooltip = byId('usage-tooltip'); tooltip.textContent = text; tooltip.hidden = false;
     const bounds = tooltip.getBoundingClientRect();
-    tooltip.style.left = `${Math.max(4, Math.min(event.clientX + 14, window.innerWidth - bounds.width - 8))}px`;
-    tooltip.style.top = `${Math.max(4, event.clientY + 18 + bounds.height < window.innerHeight ? event.clientY + 18 : event.clientY - bounds.height - 14)}px`;
+    const target = node.getBoundingClientRect();
+    const right = Math.max(event.clientX, target.right ?? event.clientX) + 14;
+    const below = Math.max(event.clientY, target.bottom ?? event.clientY) + 18;
+    const left = right + bounds.width <= window.innerWidth - 8 ? right : Math.min(event.clientX, target.left ?? event.clientX) - bounds.width - 14;
+    const top = below + bounds.height <= window.innerHeight - 8 ? below : Math.min(event.clientY, target.top ?? event.clientY) - bounds.height - 14;
+    tooltip.style.left = `${Math.max(8, Math.min(left, window.innerWidth - bounds.width - 8))}px`;
+    tooltip.style.top = `${Math.max(8, Math.min(top, window.innerHeight - bounds.height - 8))}px`;
   });
   node.addEventListener('pointerleave', () => { byId('usage-tooltip').hidden = true; });
 }
@@ -48,9 +54,11 @@ function renderLimits() {
   for (const { bucket, limit } of windows) {
     const duration = limit.windowDurationMins === 300 ? '5-hour' : limit.windowDurationMins === 10080 ? 'Weekly' : limit.windowDurationMins === null ? limit.key : limit.windowDurationMins + ' min';
     const remaining = Math.min(100, Math.max(0, 100 - limit.usedPercent));
-    const card = element('article', undefined, 'limit-card'); card.append(element('h2', duration), element('strong', `${remaining}% LEFT`));
+    const card = element('article', undefined, 'limit-card');
+    const value = element('strong', `${remaining}% `); value.append(element('span', 'LEFT', 'quota-unit'));
+    card.append(element('h2', duration), value);
     const track = element('i', undefined, 'limit-track'); const fill = element('b', undefined, 'limit-fill'); fill.style.width = `${remaining}%`; track.append(fill);
-    card.append(track, element('small', `${limit.usedPercent}% used`, 'muted'));
+    card.append(track);
     const reset = metrics.resetTime(limit.resetsAt);
     if (reset) { const text = element('p', reset.text, 'reset'); text.title = reset.title; card.append(text); }
     if ((state.stats?.limits.length || 0) > 1) card.append(element('small', bucket.name, 'muted'));
@@ -85,7 +93,7 @@ function renderTrendChart() {
     const point = points[index];
     const bar = element('div', undefined, 'trend-bar');
     bar.style.height = `${Math.max(2, model.bars[index].height / model.height * 100)}%`;
-    usageTooltip(bar, `${point.date}\n${point.tokens ? exact.format(point.tokens) + ' tokens' : 'No usage'}`);
+    usageTooltip(bar, `${dayLabel(point.date)}\n${exact.format(point.tokens)} tokens`);
     chart.append(bar);
   }
 }
@@ -105,8 +113,7 @@ function renderHeatmap() {
   for (const cell of model.cells) {
     const node = element('i', undefined, `heatmap-cell level-${cell.intensity}`);
     Object.assign(node.style, { left: `${cell.x}px`, top: `${cell.y}px`, width: `${cell.size}px`, height: `${cell.size}px` });
-    const date = new Date(cell.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    usageTooltip(node, `${date}\n` + (suppliedDates.has(cell.date) ? cell.tokens ? exact.format(cell.tokens) + ' tokens' : 'No usage' : 'Not provided by official API'));
+    usageTooltip(node, `${dayLabel(cell.date)}\n` + (suppliedDates.has(cell.date) ? cell.tokens ? exact.format(cell.tokens) + ' tokens' : 'No usage' : 'Not provided by official API'));
     chart.append(node);
   }
   for (const month of model.monthLabels) {
@@ -149,8 +156,8 @@ function render() {
   byId('updated').title = `Client fetch times · Activity: ${stats.usageUpdatedAt || 'unavailable'} · Limits: ${stats.limitsUpdatedAt || 'unavailable'}`;
   optionalStat('total', stats.periods?.allTime?.totalTokens);
   byId('total').title = Number.isSafeInteger(stats.periods?.allTime?.totalTokens) ? exact.format(stats.periods.allTime.totalTokens) + ' tokens' : '';
-  optionalStat('today', derived.today);
   optionalStat('month', derived.month?.tokens);
+  byId('primary-stats').hidden = byId('month-card').hidden && byId('total-card').hidden;
   byId('month-card').title = 'Calculated from official daily activity' + (derived.month?.partial ? ' · partial' : '');
   optionalStat('peak-day', summary.peakDayTokens);
   optionalStat('current-streak', summary.currentStreak, summary.currentStreak === null || summary.currentStreak === undefined ? null : `${summary.currentStreak} days`);
@@ -164,12 +171,13 @@ function applyStats(stats) { state.stats = stats; render(); }
 function applyTheme(theme = 'system') {
   document.documentElement.dataset.theme = theme;
   document.documentElement.dataset.appearance = theme === 'system' ? (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark') : theme;
-  setText('theme-toggle', { system: '◐', dark: '☾', light: '☀' }[theme]);
   byId('theme-toggle').title = `Theme: ${metrics.planLabel(theme)}`; byId('theme-toggle').setAttribute('aria-label', byId('theme-toggle').title);
 }
 function applySettings(settings) {
   state.settings = settings; applyTheme(settings.theme);
   byId('pin-toggle').setAttribute('aria-pressed', String(settings.alwaysOnTop)); byId('pin-toggle').classList.toggle('active', settings.alwaysOnTop);
+  byId('pin-toggle').title = `Always on top: ${settings.alwaysOnTop ? 'On' : 'Off'}`;
+  byId('pin-toggle').setAttribute('aria-label', byId('pin-toggle').title);
   byId('opacity').value = Math.round(settings.opacity * 100); setText('opacity-value', `${byId('opacity').value}%`);
   byId('refresh-interval').value = settings.refreshIntervalSec ?? 300;
 }

@@ -1,7 +1,7 @@
 # Codex Usage Dashboard
 
 沿用现有 Electron 透明悬浮窗、tray 和视觉风格，改为剩余额度优先的单页 Usage HUD。
-默认展开 450×660（最小 320×480，按屏幕工作区适配），mini mode 为 248×64。
+默认展开与最小尺寸统一为 440×690（按屏幕工作区适配），mini mode 为 248×64。
 为了兼容已有设置，应用标识和 userData 目录仍保留 `Codex Offline Monitor`。
 官方 CLI 会访问 Codex backend，应用不再是完全离线的本地 token 分析器。
 
@@ -26,18 +26,19 @@ Renderer → preload IPC → Electron main → codexAppServerClient
 
 ## 单页界面与数据口径
 
-- 首屏优先显示 5-hour / Weekly 的 `% LEFT`、官方 `% used` 和相对 reset 时间；进度条表示剩余。
-- Today、Month to date、Lifetime 为无边框 stat row，Lifetime 使用 compact number（如 `3.33B`），
+- 首屏优先显示 5-hour / Weekly 的 `% LEFT` 和相对 reset 时间；进度条表示剩余，隐藏 `% used`；数字 30px、LEFT 18px，窗口标签 15px。
+- Month to date、Lifetime 采用标题在左、数字在右的等宽摘要区域，共用淡背景，Lifetime 使用 compact number（如 `3.33B`），
   tooltip 显示完整数字。Peak、streak、longest turn、Active Days 为紧凑次级网格。
 - Last 28 Days 是 28px 高的 sparkline；六个月 heatmap 保留月份标签，按窗口宽度压缩格子。
-  两种图表 hover 显示当天完整 token 数，tooltip 跟随鼠标并避开当前格。
+  两种图表 hover 显示简短日期和完整 token 数，tooltip 跟随鼠标并避开当前格与窗口边缘。
+  Sparkline 零 bucket 显示 `0 tokens`；heatmap 零 bucket 显示 `No usage`，缺失 bucket 保留未知提示。
 - 不再有 Overview / Activity tabs、逐日长表、独立 Settings 页面或导出入口。
-- 工具栏提供 Theme（System → Dark → Light）、Refresh、置顶 pin、设置、mini mode、最小化和隐藏。
+- 工具栏提供 Theme（System → Dark → Light）、Refresh、单色线条 SVG 置顶 pin（On/Off tooltip 与 accent 边框/背景）、Preferences、mini mode、最小化和隐藏。
   System 跟随系统主题。设置小弹层保留透明度、1/5/15 分钟或 Manual 刷新，默认 5 分钟；
   Status 点击展开 RPC diagnostics，正常主界面只显示 `Official · Updated HH:mm`。
 - mini mode 显示 `5h 71% · W 23%`，只显示有数据的窗口；hover 显示 remaining 和 reset，
   点击额度恢复展开窗口，左侧状态点区域可拖动。
-- Credits 仅作为条件信息行：零 balance / 零 reset credits 隐藏；有 reset credits、非零 balance、
+- Credits 仅作为顶部条件小卡片：零 balance / 零 reset credits 隐藏；有 reset credits、非零 balance、
   Unlimited 或 individual limit 时显示。异常状态才显示警告。
 
 直接值：`summary.lifetimeTokens`、`peakDailyTokens`、`currentStreakDays`、`longestStreakDays`、
@@ -47,14 +48,13 @@ rateLimitReachedType、reset credits availableCount。不会用 daily 合计替�
 
 派生值：
 
-- Today：只取本机当前日期完全匹配的 official bucket，没有则隐藏。
 - Month to date：仅对当前月第一天到今天的 official buckets 求和，说明为
   `Calculated from official daily activity`。当前月每个日期都有 bucket 才认为完整，否则标注 `partial`；
   没有当前月 bucket 或合计超出 safe integer 范围时隐藏。
 - Active Days：与 heatmap 相同的最近六个日历月（本月及前五个月，截止今天），只计 supplied buckets 中
   `tokens > 0` 的天数，并注明范围；不把缺失日期当零 usage。
 - Last 28 Days：取截至今天最后 28 个官方 daily buckets，保留 zero-token days，不足 28 个照常展示。
-- Remaining：`100 - usedPercent`，限制在 0–100；主指标为 `% LEFT`，官方 `% used` 保留为次级文字。
+- Remaining：`100 - usedPercent`，限制在 0–100；主指标为 `% LEFT`，不显示 `% used`。
 - turn duration、相对 reset time：格式转换；reset tooltip 显示本机时区的完整时间。
 
 可选数据缺失时隐藏，Lifetime 缺失时也隐藏。heatmap 缺失日期 tooltip 是
@@ -106,6 +106,9 @@ Mock 测试不证明真实账号值与 Settings 一致；真实验收需要两�
 已移除导出模块、相关 IPC 和 `shell.openPath` 能力，不会删除用户以前生成的导出文件。
 旧 settings 中 exportDir 不再使用；主题、透明度、置顶继续兼容，新刷新间隔缺失时默认 300 秒。
 不会保存 RPC 原始 payload 或 stderr；debug stderr 仅报告事件。
+
+CI 保留 Ubuntu Node 22/24、macOS Node 24、Windows Node 24，分开执行 lint 和 tests；
+CLI discovery 使用具有执行权限的临时 fixture，RPC 生命周期使用 mock child process，测试不需要安装或登录 CLI。
 
 `npm run verify` 执行 ESLint 与全部 node:test，包括保留的 legacy parser、文件/网络边界、
 官方握手/RPC 生命周期、映射、刷新/失败保留、聚合日期边界、remaining HUD、主题/置顶/刷新控制、

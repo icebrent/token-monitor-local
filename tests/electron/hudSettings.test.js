@@ -5,6 +5,44 @@ const path = require('node:path');
 const vm = require('node:vm');
 const test = require('node:test');
 
+test('startup and expanded minimum share complete HUD dimensions; mini restores the minimum', () => {
+  const handlers = new Map(); const options = [];
+  const display = { workArea: { x: 0, y: 0, width: 1920, height: 1080 } };
+  let minimum; let bounds;
+  const electron = {
+    app: { setName() {}, setPath() {}, getPath: () => path.join(__dirname, 'missing-settings-fixture'), whenReady: () => ({ then() {} }), on() {} },
+    ipcMain: { handle: (key, handler) => handlers.set(key, handler), on() {} },
+    screen: { getPrimaryDisplay: () => display, getDisplayNearestPoint: () => display },
+    BrowserWindow: class {
+      constructor(value) { options.push(value); bounds = { x: 8, y: 8, width: value.width, height: value.height }; this.webContents = {}; }
+      setOpacity() {} loadFile() {} on() {} once() {}
+      getBounds() { return bounds; }
+      setMinimumSize(width, height) { minimum = [width, height]; }
+      setSize(width, height) { Object.assign(bounds, { width, height }); }
+      setBounds(value) { bounds = value; }
+    }
+  };
+  const context = vm.createContext({ require: (name) => name === 'electron' ? electron
+    : name === './codexAppServerClient' ? { CodexAppServerClient: class {} }
+      : name === '../shared/officialUsage' ? { OfficialUsageStore: class {} }
+        : name === './offlinePolicy' ? { lockWebContents() {} } : require(name),
+    __dirname: path.join(__dirname, '../../src/electron'), process });
+  vm.runInContext(fs.readFileSync(path.join(__dirname, '../../src/electron/main.js'), 'utf8'), context);
+  vm.runInContext('createWindow(); registerIpc();', context);
+  assert.deepEqual([options[0].width, options[0].height, options[0].minWidth, options[0].minHeight], [440, 690, 440, 690]);
+  const event = { sender: vm.runInContext('mainWindow.webContents', context) };
+  handlers.get('window:collapse')(event);
+  assert.deepEqual(minimum, [248, 64]);
+  assert.deepEqual([bounds.width, bounds.height], [248, 64]);
+  handlers.get('window:expand')(event);
+  assert.deepEqual(minimum, [440, 690]);
+  assert.deepEqual([bounds.width, bounds.height], [440, 690]);
+  display.workArea = { x: 0, y: 0, width: 400, height: 650 };
+  handlers.get('window:expand')(event);
+  assert.deepEqual(minimum, [384, 634]);
+  assert.deepEqual([bounds.width, bounds.height], [384, 634]);
+});
+
 test('settings IPC applies pin/opacity and schedules validated refresh intervals, including Manual', () => {
   const handlers = new Map(); const timers = []; const clears = []; const windowCalls = [];
   let saved; let pending;

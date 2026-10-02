@@ -6,12 +6,17 @@ const path = require('node:path');
 const vm = require('node:vm');
 const { mapUsage, mapRateLimits, emptyOfficial } = require('../../src/shared/officialUsage');
 
+const now = new Date(2026, 9, 2, 18, 0);
+class FixedDate extends Date {
+  constructor(...args) { super(...(args.length ? args : [now.getTime()])); }
+  static now() { return now.getTime(); }
+}
 const directory = path.join(__dirname, '../../src/electron');
 function renderer() {
   const elements = new Map();
   const html = fs.readFileSync(path.join(directory, 'renderer/index.html'), 'utf8');
   const ids = new Set([...html.matchAll(/id="([^"]+)"/g)].map((match) => match[1]));
-  const make = () => ({ textContent: '', hidden: false, style: {}, children: [], classList: { add() {}, remove() {}, toggle() {}, contains() { return false; } },
+  const make = () => ({ text: '', get textContent() { return this.text + this.children.map((child) => child.textContent).join(''); }, set textContent(value) { this.text = value; this.children = []; }, hidden: false, style: {}, children: [], classList: { add() {}, remove() {}, toggle() {}, contains() { return false; } },
     append(...items) { this.children.push(...items); }, replaceChildren() { this.children = []; }, listeners: {}, attributes: {}, addEventListener(event, handler) { this.listeners[event] = handler; }, setAttribute(key, value) { this.attributes[key] = value; }, removeAttribute(key) { delete this.attributes[key]; }, getBoundingClientRect() { return { width: 150, height: 50 }; }, focus() {} });
   const get = (id) => { assert.ok(ids.has(id), 'Missing real DOM id: ' + id); if (!elements.has(id)) elements.set(id, make()); return elements.get(id); };
   let changed;
@@ -26,7 +31,7 @@ function renderer() {
   });
   const window = { codexOffline: exposed, innerWidth: 450, innerHeight: 620, addEventListener() {}, matchMedia: () => ({ matches: true, addEventListener() {} }) };
   const context = vm.createContext({ window, document: { getElementById: get, createElement: make, querySelectorAll: () => [], addEventListener() {}, documentElement: { dataset: {} } },
-    Intl, setInterval: () => 0, setTimeout: () => 0, clearTimeout() {}, requestAnimationFrame: () => 0, cancelAnimationFrame() {} });
+    Intl, Date: FixedDate, setInterval: () => 0, setTimeout: () => 0, clearTimeout() {}, requestAnimationFrame: () => 0, cancelAnimationFrame() {} });
   for (const file of ['../../shared/usageMetrics.js', 'analysis.js', 'app.js']) vm.runInContext(fs.readFileSync(path.join(directory, 'renderer', file), 'utf8'), context);
   return { context, get, changed: (snapshot) => changed({}, snapshot) };
 }
@@ -39,10 +44,9 @@ test('official IPC payload renders compact lifetime, remaining limits, streaks a
   ui.changed(snapshot);
   assert.equal(ui.get('total').textContent, '987.65K');
   assert.equal(ui.get('compact-quota').textContent, '5h 80%');
-  assert.equal(ui.get('today-card').hidden, require('../../src/shared/usageMetrics').localDate() !== '2026-10-02');
   assert.match(ui.get('updated').textContent, /^· Updated \d\d:\d\d$/);
   assert.equal(ui.get('limits').children[0].children[1].textContent, '80% LEFT');
-  assert.equal(ui.get('limits').children[0].children[3].textContent, '20% used');
+  assert.equal(ui.get('limits').children[0].children.length, 3);
   assert.equal(ui.get('current-streak').textContent, '3 days');
   assert.equal(ui.get('longest-streak').textContent, '7 days');
   assert.equal(ui.get('peak-day').textContent, '500');
@@ -73,7 +77,7 @@ test('production main and preload use official IPC, periodic refresh and clean s
 
 test('optional fields hide cards; available plan, turn, credits and spending details render without guessed units', async () => {
   const ui = renderer(); await new Promise(setImmediate);
-  for (const id of ['plan-badge', 'today-card', 'month-card', 'longest-turn-card', 'credit-info', 'peak-day-card']) assert.equal(ui.get(id).hidden, true, id);
+  for (const id of ['plan-badge', 'month-card', 'longest-turn-card', 'credit-info', 'peak-day-card']) assert.equal(ui.get(id).hidden, true, id);
   const response = { rateLimits: { planType: 'pro', primary: { usedPercent: 63, windowDurationMins: 300, resetsAt: null }, credits: { balance: '12.40', hasCredits: true, unlimited: false },
     individualLimit: { limit: '20.00', used: '7.60', remainingPercent: 62, resetsAt: null }, normalModelSlug: 'gpt-5' },
     rateLimitsByLimitId: null };
@@ -106,21 +110,19 @@ test('abnormal permissions and backend limit states show banners only when prese
   assert.equal(ui.get('credit-info').hidden, true);
 });
 
-test('renderer derives Today and partial MTD from official buckets and preserves zero days in charts', async () => {
+test('renderer derives partial MTD from official buckets and preserves zero days in charts', async () => {
   const ui = renderer(); await new Promise(setImmediate);
-  const now = new Date();
   const key = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   const first = key.slice(0, 8) + '01';
   const daily = first === key ? [{ date: key, tokens: 0 }] : [{ date: first, tokens: 10 }, { date: key, tokens: 0 }];
   ui.changed({ ...emptyOfficial(), periods: { today: { totalTokens: 99999 } }, history: { daily, dailyAvailable: true, summary: {} } });
-  assert.equal(ui.get('today').textContent, '0'); assert.equal(ui.get('today-card').hidden, false);
   assert.equal(ui.get('month').textContent, first === key ? '0' : '10');
   assert.match(ui.get('month-card').title, /Calculated from official daily activity/);
   assert.equal(ui.get('daily-trend-chart').children.length, daily.length);
-  assert.match(ui.get('daily-trend-chart').children.at(-1).title, /No usage/);
+  assert.match(ui.get('daily-trend-chart').children.at(-1).title, /0 tokens/);
   assert.ok(ui.get('heatmap-chart').children.some((node) => node.title?.includes('No usage')));
   ui.changed({ ...emptyOfficial(), periods: { today: { totalTokens: 99999 } }, history: { daily: [], summary: {} } });
-  assert.equal(ui.get('today-card').hidden, true); assert.equal(ui.get('month-card').hidden, true);
+  assert.equal(ui.get('month-card').hidden, true);
 });
 
 test('production renderer has no session, model, project or local composition wiring', () => {
@@ -138,9 +140,13 @@ test('toolbar cycles theme immediately, toggles pin, and updates refresh interva
   for (const theme of ['Dark', 'Light', 'System']) {
     ui.get('theme-toggle').listeners.click(); await new Promise(setImmediate);
     assert.equal(ui.get('theme-toggle').title, `Theme: ${theme}`);
+    assert.equal(ui.get('theme-toggle').attributes['aria-label'], `Theme: ${theme}`);
   }
+  assert.equal(ui.get('pin-toggle').title, 'Always on top: On');
   ui.get('pin-toggle').listeners.click(); await new Promise(setImmediate);
   assert.equal(ui.get('pin-toggle').attributes['aria-pressed'], 'false');
+  assert.equal(ui.get('pin-toggle').title, 'Always on top: Off');
+  assert.equal(ui.get('pin-toggle').attributes['aria-label'], 'Always on top: Off');
   ui.get('refresh-interval').listeners.change({ target: { value: '0' } }); await new Promise(setImmediate);
   assert.equal(ui.get('refresh-interval').value, 0);
   ui.get('refresh-interval').listeners.change({ target: { value: '900' } }); await new Promise(setImmediate);
@@ -149,8 +155,8 @@ test('toolbar cycles theme immediately, toggles pin, and updates refresh interva
 test('lifetime is compact with exact tooltip; mini shows both quota windows and reset details', async () => {
   const ui = renderer(); await new Promise(setImmediate);
   ui.changed({ ...emptyOfficial(), periods: { allTime: { totalTokens: 3327514760 } }, limits: mapRateLimits({ rateLimits: {
-    primary: { usedPercent: 29, windowDurationMins: 300, resetsAt: Date.now() / 1000 + 3600 },
-    secondary: { usedPercent: 77, windowDurationMins: 10080, resetsAt: Date.now() / 1000 + 86400 } } }) });
+    primary: { usedPercent: 29, windowDurationMins: 300, resetsAt: now.getTime() / 1000 + 3600 },
+    secondary: { usedPercent: 77, windowDurationMins: 10080, resetsAt: now.getTime() / 1000 + 86400 } } }) });
   assert.equal(ui.get('total').textContent, '3.33B'); assert.equal(ui.get('total').title, '3,327,514,760 tokens');
   assert.equal(ui.get('compact-quota').textContent, '5h 71% · W 23%');
   assert.match(ui.get('expand').title, /71% remaining/); assert.match(ui.get('expand').title, /Resets in/);
@@ -159,7 +165,7 @@ test('lifetime is compact with exact tooltip; mini shows both quota windows and 
 });
 test('empty credits hide and exact heatmap tooltip follows pointer without covering cell', async () => {
   const ui = renderer(); await new Promise(setImmediate);
-  const date = require('../../src/shared/usageMetrics').localDate();
+  const date = '2026-10-02';
   ui.changed({ ...emptyOfficial(), history: { daily: [{ date, tokens: 16232095 }], summary: {} }, limits: [{ windows: [], credits: { balance: '0', hasCredits: false } }], rateLimitResetCredits: { availableCount: 0 } });
   assert.equal(ui.get('credit-info').hidden, true);
   const cell = ui.get('heatmap-chart').children.find((node) => node.title?.includes('16,232,095 tokens'));
@@ -173,12 +179,32 @@ test('empty credits hide and exact heatmap tooltip follows pointer without cover
 
 test('mini displays only the available official quota window and sparkline hover preserves exact values', async () => {
   const ui = renderer(); await new Promise(setImmediate);
-  const date = require('../../src/shared/usageMetrics').localDate();
+  const date = '2026-10-02';
   ui.changed({ ...emptyOfficial(), history: { daily: [{ date, tokens: 16232095 }], summary: {} }, limits: mapRateLimits({ rateLimits: { secondary: { windowDurationMins: 10080, usedPercent: 100, resetsAt: null } } }) });
   assert.equal(ui.get('compact-quota').textContent, 'W 0%');
   const point = ui.get('daily-trend-chart').children[0];
   point.listeners.pointermove({ clientX: 430, clientY: 600 });
-  assert.equal(ui.get('usage-tooltip').textContent, `${date}\n16,232,095 tokens`);
-  assert.equal(ui.get('usage-tooltip').style.left, '292px'); assert.equal(ui.get('usage-tooltip').style.top, '536px');
-  assert.equal(ui.get('limits').children[0].children[3].textContent, '100% used');
+  assert.equal(ui.get('usage-tooltip').textContent, 'Oct 2\n16,232,095 tokens');
+  assert.equal(ui.get('usage-tooltip').style.left, '266px'); assert.equal(ui.get('usage-tooltip').style.top, '536px');
+  assert.equal(ui.get('limits').children[0].children.length, 3);
+});
+
+test('remaining bars, zero buckets and tooltip edge placement retain their meaning', async () => {
+  const ui = renderer(); await new Promise(setImmediate);
+  ui.changed({ ...emptyOfficial(), history: { daily: [{ date: '2026-10-01', tokens: 16232095 }, { date: '2026-10-02', tokens: 0 }], summary: {} },
+    limits: mapRateLimits({ rateLimits: { primary: { usedPercent: 36, windowDurationMins: 300, resetsAt: null }, secondary: { usedPercent: 78, windowDurationMins: 10080, resetsAt: null } } }) });
+  assert.deepEqual(ui.get('limits').children.map((card) => card.children[2].children[0].style.width), ['64%', '22%']);
+  assert.equal(ui.get('daily-trend-chart').children[0].title, 'Oct 1\n16,232,095 tokens');
+  assert.equal(ui.get('daily-trend-chart').children[1].title, 'Oct 2\n0 tokens');
+  assert.ok(ui.get('heatmap-chart').children.some((cell) => cell.title === 'Oct 2\nNo usage'));
+  assert.ok(ui.get('heatmap-chart').children.some((cell) => cell.title?.includes('Not provided by official API')));
+  const bar = ui.get('daily-trend-chart').children[0];
+  for (const [clientX, clientY] of [[1, 1], [449, 1], [1, 619], [449, 619]]) {
+    bar.listeners.pointermove({ clientX, clientY });
+    const tooltip = ui.get('usage-tooltip');
+    const left = parseFloat(tooltip.style.left); const top = parseFloat(tooltip.style.top);
+    assert.ok(left >= 8 && left + 150 <= 442);
+    assert.ok(top >= 8 && top + 50 <= 612);
+    assert.ok(clientX < left || clientX > left + 150 || clientY < top || clientY > top + 50);
+  }
 });

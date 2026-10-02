@@ -6,6 +6,7 @@ const { PassThrough, Writable } = require('node:stream');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+const vm = require('node:vm');
 const { CodexAppServerClient, findCodex } = require('../../src/electron/codexAppServerClient');
 
 test('CLI detection supports native PATH and Windows npm vendor installs without shell wrappers', (t) => {
@@ -14,12 +15,45 @@ test('CLI detection supports native PATH and Windows npm vendor installs without
   assert.throws(() => findCodex({ PATH: root }, 'win32'), { code: 'cli_missing' });
   const triple = `${process.arch === 'arm64' ? 'aarch64' : 'x86_64'}-pc-windows-msvc`;
   const executable = path.join(root, 'node_modules', '@openai', 'codex', 'node_modules', '@openai', `codex-win32-${process.arch}`, 'vendor', triple, 'codex', 'codex.exe');
-  fs.mkdirSync(path.dirname(executable), { recursive: true }); fs.writeFileSync(executable, 'fixture');
+  fs.mkdirSync(path.dirname(executable), { recursive: true }); fs.writeFileSync(executable, 'fixture'); fs.chmodSync(executable, 0o755);
   assert.equal(findCodex({ PATH: root }, 'win32'), executable);
-  const native = path.join(root, 'codex.exe'); fs.writeFileSync(native, 'fixture');
+  const native = path.join(root, 'codex.exe'); fs.writeFileSync(native, 'fixture'); fs.chmodSync(native, 0o755);
   assert.equal(findCodex({ PATH: root }, 'win32'), native);
   const wrapper = path.join(root, 'codex'); fs.writeFileSync(wrapper, '#!/usr/bin/env node\n'); fs.chmodSync(wrapper, 0o755);
-  assert.throws(() => findCodex({ PATH: root }, 'linux'), { code: 'cli_missing' });
+  for (const platform of ['linux', 'darwin']) {
+    assert.throws(() => findCodex({ PATH: root }, platform), { code: 'cli_missing' });
+  }
+  fs.writeFileSync(wrapper, 'native fixture');
+  for (const platform of ['linux', 'darwin']) assert.equal(findCodex({ PATH: root }, platform), wrapper);
+  if (process.platform !== 'win32') {
+    fs.chmodSync(wrapper, 0o644);
+    for (const platform of ['linux', 'darwin']) assert.throws(() => findCodex({ PATH: root }, platform), { code: 'cli_missing' });
+  }
+});
+
+for (const platform of ['linux', 'darwin']) test(`${platform} discovery requires executable permission and ignores PATH wrappers`, () => {
+  // Model POSIX permissions even on a Windows test host; never inspect the real PATH.
+  const files = new Map([
+    ['/wrapper/codex', { mode: 0o755, magic: '#!' }],
+    ['/native/codex', { mode: 0o644, magic: 'NA' }]
+  ]);
+  const checked = [];
+  const fakeFs = {
+    constants: { X_OK: 1 },
+    statSync(file) { if (!files.has(file)) throw new Error('missing fixture'); return { isFile: () => true }; },
+    accessSync(file, mode) { checked.push([file, mode]); if (!(files.get(file).mode & 0o111)) throw new Error('not executable'); },
+    openSync: (file) => file,
+    readSync: (file, buffer) => buffer.write(files.get(file).magic),
+    closeSync() {}
+  };
+  const context = { module: { exports: {} }, Buffer, process: { platform, arch: 'x64', env: {} },
+    require: (name) => name === 'node:fs' ? fakeFs : name === 'node:path' ? path.posix : { spawn() { throw new Error('No real process allowed'); } } };
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../../src/electron/codexAppServerClient.js'), 'utf8'), context);
+  const resolve = context.module.exports.findCodex;
+  assert.throws(() => resolve({ PATH: '/wrapper:/native' }), { code: 'cli_missing' });
+  files.get('/native/codex').mode = 0o755;
+  assert.equal(resolve({ PATH: '/wrapper:/native' }), '/native/codex');
+  assert.deepEqual(checked, [['/wrapper/codex', 1], ['/native/codex', 1], ['/wrapper/codex', 1], ['/native/codex', 1]]);
 });
 
 function mock(t, { timeoutMs = 100, autoInitialize = true } = {}) {

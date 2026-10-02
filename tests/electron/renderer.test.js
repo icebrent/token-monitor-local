@@ -48,17 +48,25 @@ test('analysis uses a six-calendar-month heatmap and preserves sparkline behavio
 
 
 test('single page HUD removes tabs, daily list, export and lifetime hero wiring', () => {
-  assert.doesNotMatch(html + script, /view-select|summary-view|activity-view|daily-activity|daily-panel|settings-sheet|choose-export|export-now|open-export|open-user-data|total-delta|tokenTransition/);
+  assert.doesNotMatch(html + script, /today-card|view-select|summary-view|activity-view|daily-activity|daily-panel|settings-sheet|choose-export|export-now|open-export|open-user-data|total-delta|tokenTransition/);
   assert.doesNotMatch(main + preload, /export:|exportDir|exporter|openUserData|openPath|dialog|localPaths|codexJsonlParser/);
   assert.equal(fs.existsSync(path.join(root, 'src/shared/exporter.js')), false);
   for (const id of ['theme-toggle', 'pin-toggle', 'refresh-interval', 'settings-popover', 'compact-quota']) assert.ok(html.includes(`id="${id}"`));
 });
 test('window is compact and screen aware; production renderer stays network free', () => {
-  assert.match(main, /width: 450, height: 660/);
+  assert.match(main, /NORMAL_MINIMUM_SIZE = \{ width: 440, height: 690 \}/);
   assert.match(main, /width: 248, height: 64/);
   assert.match(main, /normalBoundsForDisplay\(display, expandedPosition\)/);
   assert.match(main, /\[0, 60, 300, 900\]/);
   assert.match(main, /settings.refreshIntervalSec \* 1000/);
   assert.doesNotMatch(script + html, /\bfetch\s*\(|XMLHttpRequest|WebSocket|https?:\/\//);
   assert.doesNotMatch(html + script + main, /\p{Script=Han}/u);
+});
+
+test('every toolbar icon and preferences close action has a title and accessible label', () => {
+  for (const id of ['theme-toggle', 'refresh', 'pin-toggle', 'settings-trigger', 'collapse', 'minimize', 'hide', 'settings-close', 'expand']) {
+    const button = html.match(new RegExp(`<button id="${id}"[^>]*>`))[0];
+    assert.match(button, /title="[^"]+"/);
+    assert.match(button, /aria-label="[^"]+"/);
+  }
 });
