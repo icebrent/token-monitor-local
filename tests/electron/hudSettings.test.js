@@ -8,9 +8,9 @@ const test = require('node:test');
 test('startup and expanded minimum share complete HUD dimensions; mini restores the minimum', () => {
   const handlers = new Map(); const options = [];
   const display = { workArea: { x: 0, y: 0, width: 1920, height: 1080 } };
-  let minimum; let bounds;
+  let minimum; let bounds; let appId;
   const electron = {
-    app: { setName() {}, setPath() {}, getPath: () => path.join(__dirname, 'missing-settings-fixture'), whenReady: () => ({ then() {} }), on() {} },
+    app: { setName() {}, setAppUserModelId(value) { appId = value; }, setPath() {}, getPath: () => path.join(__dirname, 'missing-settings-fixture'), whenReady: () => ({ then() {} }), on() {} },
     ipcMain: { handle: (key, handler) => handlers.set(key, handler), on() {} },
     screen: { getPrimaryDisplay: () => display, getDisplayNearestPoint: () => display },
     BrowserWindow: class {
@@ -30,6 +30,9 @@ test('startup and expanded minimum share complete HUD dimensions; mini restores 
   vm.runInContext(fs.readFileSync(path.join(__dirname, '../../src/electron/main.js'), 'utf8'), context);
   vm.runInContext('createWindow(); registerIpc();', context);
   assert.deepEqual([options[0].width, options[0].height, options[0].minWidth, options[0].minHeight], [440, 690, 440, 690]);
+  assert.equal(path.basename(options[0].icon), process.platform === 'win32' ? 'icon-win.ico' : 'icon.png');
+  assert.ok(fs.existsSync(options[0].icon));
+  assert.equal(appId, process.platform === 'win32' ? 'local.codex.offlinemonitor' : undefined);
   const event = { sender: vm.runInContext('mainWindow.webContents', context) };
   handlers.get('window:collapse')(event);
   assert.deepEqual(minimum, [248, 64]);
@@ -48,7 +51,7 @@ test('settings IPC applies pin/opacity and schedules validated refresh intervals
   let saved; let pending;
   const mockFs = { lstatSync() { if (!saved) throw new Error('missing'); return { isFile: () => true, isSymbolicLink: () => false }; },
     readFileSync: () => saved, mkdirSync() {}, writeFileSync: (_, text) => { pending = text; }, renameSync: () => { saved = pending; } };
-  const electron = { app: { setName() {}, setPath() {}, getPath: () => 'C:/test', whenReady: () => ({ then() {} }), on() {} },
+  const electron = { app: { setName() {}, setAppUserModelId() {}, setPath() {}, getPath: () => 'C:/test', whenReady: () => ({ then() {} }), on() {} },
     ipcMain: { handle: (key, handler) => handlers.set(key, handler), on() {} } };
   const context = vm.createContext({ require: (name) => name === 'electron' ? electron : name === 'node:fs' ? mockFs
     : name === './codexAppServerClient' ? { CodexAppServerClient: class {} }

@@ -113,3 +113,28 @@ CLI discovery 使用具有执行权限的临时 fixture，RPC 生命周期使用
 `npm run verify` 执行 ESLint 与全部 node:test，包括保留的 legacy parser、文件/网络边界、
 官方握手/RPC 生命周期、映射、刷新/失败保留、聚合日期边界、remaining HUD、主题/置顶/刷新控制、
 条件 credits、精确 tooltip 与旧 UI/IPC 移除检查。没有增加依赖；chokidar 依赖仍保留，生产不使用。
+
+## 图标与快捷启动
+
+图标以 `harness-pet/assets/characters/gpt-white/reference/turnaround.png` 的正面角色为参考，
+生成白发、紫瞳、双角的透明头像。`assets/icon.png` 用于通用窗口/tray 和 macOS/Linux 打包，
+`assets/icon-win.ico` 包含 16/20/24/32/40/48/64/128/256px，用于 Windows 窗口、任务栏及打包 exe。
+`assets/icon-win.png` 保留 PNG 版本。Windows 使用与 build.appId 一致的 AppUserModelID。
+原参考角色来自 harness-pet；该项目列出的画师为 [ZipZipPipe](https://space.bilibili.com/4168597)
+和 [这个刀子真甜](https://space.bilibili.com/23315338)，尚未记录角色与画师的逐一对应关系。
+
+开发目录可把 `node_modules\electron\dist\electron.exe` 发送快捷方式到桌面，然后修改属性：
+
+- 目标：`"C:\Users\icebrent\Documents\token-monitor-local\node_modules\electron\dist\electron.exe" "C:\Users\icebrent\Documents\token-monitor-local"`
+- 起始位置：`C:\Users\icebrent\Documents\token-monitor-local`
+- 更改图标：选择项目的 `assets\icon-win.ico`。
+
+仅发送 electron.exe 而不添加项目参数不会启动 HUD。快捷方式使用当前源码，项目目录和 node_modules 需要保留。
+不会修改 node_modules 中 Electron 宿主 exe 的内嵌文件图标；新文件图标嵌入本项目打包产物。
+
+```powershell
+npm.cmd run dist:win:dir
+```
+
+生成 `dist\win-unpacked\Codex Offline Monitor.exe`。可直接为它创建快捷方式，无需项目参数；
+移动时需保留整个 win-unpacked 目录，不能只复制 exe。此构建不发布、不安装，仍需本机安装并登录 Codex CLI。

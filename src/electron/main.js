@@ -8,7 +8,9 @@ const { OfficialUsageStore } = require('../shared/officialUsage');
 const { installOfflineSessionPolicy, lockWebContents } = require('./offlinePolicy');
 
 const APP_NAME = 'Codex Offline Monitor';
+const APP_ID = 'local.codex.offlinemonitor';
 const APP_ICON = path.join(__dirname, '..', '..', 'assets', 'icon.png');
+const WINDOW_ICON = process.platform === 'win32' ? path.join(__dirname, '..', '..', 'assets', 'icon-win.ico') : APP_ICON;
 const RENDERER_HTML = path.join(__dirname, 'renderer', 'index.html');
 const PRELOAD = path.join(__dirname, 'preload.js');
 const NORMAL_MINIMUM_SIZE = { width: 440, height: 690 };
@@ -18,6 +20,7 @@ const SETTINGS_KEYS = new Set(['alwaysOnTop', 'opacity', 'theme', 'refreshInterv
 const SESSION_PARTITION = 'codex-offline-memory';
 
 app.setName(APP_NAME);
+if (process.platform === 'win32') app.setAppUserModelId(APP_ID);
 app.setPath('userData', path.join(app.getPath('appData'), APP_NAME));
 
 let mainWindow = null;
@@ -135,7 +138,7 @@ function createWindow() {
     resizable: true,
     alwaysOnTop: settings.alwaysOnTop,
     backgroundColor: '#00000000',
-    icon: APP_ICON,
+    icon: WINDOW_ICON,
     webPreferences: {
       preload: PRELOAD,
       contextIsolation: true,

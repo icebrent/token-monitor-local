@@ -29,6 +29,7 @@
       "src/shared/**/*",
       "assets/icon.png",
       "assets/icon-win.png",
+      "assets/icon-win.ico",
       "package.json"
     ],
     "mac": {
@@ -59,7 +60,7 @@
           ]
         }
       ],
-      "icon": "assets/icon-win.png"
+      "icon": "assets/icon-win.ico"
     },
     "linux": {
       "artifactName": "Codex-Offline-Monitor-${version}.${ext}",
