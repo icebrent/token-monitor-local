@@ -2,471 +2,204 @@
 
 const api = window.codexOffline;
 const analysis = window.codexAnalysis;
-const modelRows = window.codexModelRows;
-const sessionRows = window.codexSessionRows;
-const tokenTransition = window.codexTokenTransition;
-const state = {
-  stats: null,
-  view: 'overview',
-  period: 'today',
-  analysisTab: 'overview',
-  settings: null
-};
+const metrics = window.codexUsageMetrics;
+
+const state = { stats: null, settings: null };
 const byId = (id) => document.getElementById(id);
-const format = new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 });
+const format = new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 2 });
 const exact = new Intl.NumberFormat('en-US');
-const TOTAL_COALESCE_MS = 1200;
-const totalTransitionTimers = new Set();
-let totalTransitionFrame = null;
-let totalCoalesceTimer = null;
-let queuedTotalTransition = null;
-
-function number(value) {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : 0;
-}
-
-function components(period) {
-  const total = number(period?.totalTokens);
-  const cached = number(period?.cacheReadTokens);
-  const cacheWrite = number(period?.cacheWriteTokens);
-  const output = number(period?.outputTokens);
-  return {
-    total,
-    input: Math.max(0, total - cached - cacheWrite - output),
-    cached,
-    output
-  };
-}
-
-function reasoning(period) {
-  return Object.values(period?.sessions || {})
-    .reduce((sum, session) => sum + number(session.reasoningTokens), 0);
-}
-
-function setText(id, value) {
-  byId(id).textContent = value;
-}
-
-function clearTotalTransition() {
-  for (const timer of totalTransitionTimers) clearTimeout(timer);
-  totalTransitionTimers.clear();
-  if (totalTransitionFrame !== null) cancelAnimationFrame(totalTransitionFrame);
-  totalTransitionFrame = null;
-  const delta = byId('total-delta');
-  delta.hidden = true;
-  delta.classList.remove('is-visible');
-  byId('total').classList.remove('token-total-settling');
-  byId('compact-total').classList.remove('token-total-settling');
-}
-
-function clearTotalQueue() {
-  if (totalCoalesceTimer !== null) clearTimeout(totalCoalesceTimer);
-  totalCoalesceTimer = null;
-  queuedTotalTransition = null;
-}
-
-function clearTotalUpdates() {
-  clearTotalQueue();
-  clearTotalTransition();
-}
-
-function hasTotalUpdateInProgress() {
-  return totalCoalesceTimer !== null
-    || queuedTotalTransition !== null
-    || totalTransitionFrame !== null
-    || totalTransitionTimers.size > 0;
-}
-
-function setTotalValues(total) {
-  setText('total', exact.format(total));
-  setText('compact-total', format.format(total));
-}
-
-function animateTotal(transition) {
-  clearTotalTransition();
-  setTotalValues(transition.from);
-  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-    setTotalValues(transition.to);
-    return;
-  }
-
-  const delta = byId('total-delta');
-  delta.textContent = `+${exact.format(transition.delta)}`;
-  delta.hidden = false;
-  totalTransitionFrame = requestAnimationFrame(() => {
-    totalTransitionFrame = null;
-    delta.classList.add('is-visible');
-    setText('compact-total', `${format.format(transition.from)} +${format.format(transition.delta)}`);
+const setText = (id, value) => { byId(id).textContent = value; };
+function usageTooltip(node, text) {
+  node.title = text;
+  node.setAttribute('aria-label', text);
+  node.addEventListener('pointermove', (event) => {
+    node.removeAttribute('title');
+    const tooltip = byId('usage-tooltip'); tooltip.textContent = text; tooltip.hidden = false;
+    const bounds = tooltip.getBoundingClientRect();
+    tooltip.style.left = `${Math.max(4, Math.min(event.clientX + 14, window.innerWidth - bounds.width - 8))}px`;
+    tooltip.style.top = `${Math.max(4, event.clientY + 18 + bounds.height < window.innerHeight ? event.clientY + 18 : event.clientY - bounds.height - 14)}px`;
   });
-
-  const settleTimer = setTimeout(() => {
-    totalTransitionTimers.delete(settleTimer);
-    delta.classList.remove('is-visible');
-    setTotalValues(transition.to);
-    byId('total').classList.add('token-total-settling');
-    byId('compact-total').classList.add('token-total-settling');
-  }, 850);
-  totalTransitionTimers.add(settleTimer);
-
-  const cleanupTimer = setTimeout(() => {
-    totalTransitionTimers.delete(cleanupTimer);
-    clearTotalTransition();
-    setTotalValues(transition.to);
-  }, 1100);
-  totalTransitionTimers.add(cleanupTimer);
+  node.addEventListener('pointerleave', () => { byId('usage-tooltip').hidden = true; });
 }
-
-function queueTotalTransition(transition) {
-  queuedTotalTransition = tokenTransition.merge(queuedTotalTransition, transition);
-  if (totalCoalesceTimer !== null) return;
-  totalCoalesceTimer = setTimeout(() => {
-    totalCoalesceTimer = null;
-    const nextTransition = queuedTotalTransition;
-    queuedTotalTransition = null;
-    if (nextTransition) animateTotal(nextTransition);
-  }, TOTAL_COALESCE_MS);
+function element(tag, text, className) {
+  const node = document.createElement(tag);
+  if (text !== undefined) node.textContent = text;
+  if (className) node.className = className;
+  return node;
 }
-
-function renderModels(period) {
-  const container = byId('models');
-  container.replaceChildren();
-  const entries = modelRows.from(period?.models);
-  const max = Math.max(1, ...entries.map(([, tokens]) => tokens));
-  for (const [model, tokens] of entries) {
-    const row = document.createElement('div');
-    row.className = 'model-row';
-    const label = document.createElement('span');
-    label.textContent = model;
-    const value = document.createElement('strong');
-    value.textContent = exact.format(tokens);
-    const track = document.createElement('i');
-    const fill = document.createElement('b');
-    fill.style.width = `${Math.max(2, tokens / max * 100)}%`;
-    track.append(fill);
-    row.append(label, value, track);
-    container.append(row);
+function detail(container, label, value, title) {
+  if (value === null || value === undefined || value === '') return;
+  const row = element('div', undefined, 'diagnostic-row');
+  const text = element('small', String(value));
+  if (title) text.title = title;
+  row.append(element('span', label), text);
+  container.append(row);
+}
+function optionalStat(id, value, label = null) {
+  byId(id + '-card').hidden = value === null || value === undefined;
+  if (value !== null && value !== undefined) setText(id, label || format.format(value));
+}
+function renderLimits() {
+  const container = byId('limits'); container.replaceChildren();
+  const warnings = []; const credits = []; const mini = []; const miniDetails = [];
+  if (state.stats?.ordinaryUsageAllowed === false) warnings.push('Ordinary included usage is currently unavailable');
+  const windows = (state.stats?.limits || []).flatMap((bucket) => bucket.windows.map((limit) => ({ bucket, limit })));
+  windows.sort((a, b) => (a.limit.windowDurationMins ?? Infinity) - (b.limit.windowDurationMins ?? Infinity));
+  for (const { bucket, limit } of windows) {
+    const duration = limit.windowDurationMins === 300 ? '5-hour' : limit.windowDurationMins === 10080 ? 'Weekly' : limit.windowDurationMins === null ? limit.key : limit.windowDurationMins + ' min';
+    const remaining = Math.min(100, Math.max(0, 100 - limit.usedPercent));
+    const card = element('article', undefined, 'limit-card'); card.append(element('h2', duration), element('strong', `${remaining}% LEFT`));
+    const track = element('i', undefined, 'limit-track'); const fill = element('b', undefined, 'limit-fill'); fill.style.width = `${remaining}%`; track.append(fill);
+    card.append(track, element('small', `${limit.usedPercent}% used`, 'muted'));
+    const reset = metrics.resetTime(limit.resetsAt);
+    if (reset) { const text = element('p', reset.text, 'reset'); text.title = reset.title; card.append(text); }
+    if ((state.stats?.limits.length || 0) > 1) card.append(element('small', bucket.name, 'muted'));
+    if (remaining <= 10) card.classList.add('quota-low'); container.append(card);
+    if ([300, 10080].includes(limit.windowDurationMins)) { mini.push(`${limit.windowDurationMins === 300 ? '5h' : 'W'} ${remaining}%`); miniDetails.push(`${duration}\n${remaining}% remaining` + (reset ? `\n${reset.text}\n${reset.title}` : '')); }
   }
-  if (!entries.length) {
-    const empty = document.createElement('p');
-    empty.className = 'muted';
-    empty.textContent = 'No model usage in this period';
-    container.append(empty);
+  for (const bucket of state.stats?.limits || []) {
+    if (bucket.rateLimitReachedType) warnings.push(bucket.name + ': ' + bucket.rateLimitReachedType.replaceAll('_', ' '));
+    if (bucket.spendControlReached === true) warnings.push(bucket.name + ': spending limit reached');
+    if (bucket.credits?.unlimited === true) credits.push('Unlimited credits');
+    else if (bucket.credits?.balance && Number(bucket.credits.balance) !== 0) credits.push(`Credits: ${bucket.credits.balance}`);
+    const individual = bucket.individualLimit;
+    if (individual) {
+      for (const key of ['limit', 'used']) if (individual[key] !== null && individual[key] !== undefined) credits.push(`Individual ${key}: ${individual[key]}`);
+      if (individual.remainingPercent !== null && individual.remainingPercent !== undefined) credits.push(`Individual remaining: ${individual.remainingPercent}%`);
+      const reset = metrics.resetTime(individual.resetsAt); if (reset) credits.push(reset.text);
+    }
   }
+  const count = state.stats?.rateLimitResetCredits?.availableCount; if (count > 0) credits.unshift(`${count} reset credits available`);
+  setText('credit-info', credits.join(' · ')); byId('credit-info').hidden = !credits.length;
+  setText('compact-quota', mini.join(' · ') || 'Limits unavailable'); byId('expand').title = miniDetails.join('\n\n') || 'Official limits unavailable · Click to expand';
+  byId('limit-warning').hidden = !warnings.length; setText('limit-warning', warnings.join(' · ')); byId('limits-unavailable').hidden = container.children.length > 0;
 }
-
-function renderSessions(period) {
-  const container = byId('recent-sessions');
-  container.replaceChildren();
-  const rows = sessionRows.from(period?.sessions);
-  for (const session of rows) {
-    const row = document.createElement('div');
-    row.className = 'session-row';
-    const title = document.createElement('span');
-    title.textContent = session.label;
-    const meta = document.createElement('small');
-    meta.textContent = session.isOther
-      ? `${exact.format(session.sessionCount)} sessions · ${format.format(session.tokens)} tokens`
-      : `${session.model} · ${format.format(session.tokens)} tokens`;
-    row.append(title, meta);
-    container.append(row);
-  }
-  if (!rows.length) {
-    const empty = document.createElement('p');
-    empty.className = 'muted';
-    empty.textContent = 'No sessions in this period';
-    container.append(empty);
-  }
-}
-
-function trendPoints() {
-  const history = state.stats?.history || {};
-  return (history.daily || []).filter((day) => number(day.tokens) > 0).slice(-28);
-}
-
-function renderTrendChart(id, points = trendPoints()) {
-  const chart = byId(id);
+function trendPoints() { return metrics.activity(state.stats?.history?.daily || []).trend; }
+function renderTrendChart() {
+  const chart = byId('daily-trend-chart');
   chart.replaceChildren();
-  const model = analysis.sparklinePreview(points, { width: 300, height: 220, gap: 0.25 });
-  for (let index = 0; index < points.length; index += 1) {
+  const points = trendPoints();
+  byId('trend-panel').hidden = !points.length;
+  const model = analysis.sparklinePreview(points, { width: 300, height: 28, gap: 0.25 });
+  for (let index = 0; index < points.length; index++) {
     const point = points[index];
-    const value = number(point.tokens);
-    const bar = document.createElement('div');
-    bar.className = 'trend-bar';
-    bar.style.height = `${Math.max(3, model.bars[index].height / model.height * 100)}%`;
-    bar.title = `${point.date}: ${exact.format(value)} token`;
+    const bar = element('div', undefined, 'trend-bar');
+    bar.style.height = `${Math.max(2, model.bars[index].height / model.height * 100)}%`;
+    usageTooltip(bar, `${point.date}\n${point.tokens ? exact.format(point.tokens) + ' tokens' : 'No usage'}`);
     chart.append(bar);
   }
 }
-
 function renderHeatmap() {
   const daily = state.stats?.history?.daily || [];
-  const model = analysis.rollingSixMonthHeatmap(daily);
+  byId('heatmap-panel').hidden = !daily.length;
+  const available = Math.max(1, (byId('heatmap-panel').clientWidth || 394) - 24);
+  const base = analysis.rollingSixMonthHeatmap(daily);
+  const gap = available < 330 ? 2 : 4;
+  const cell = Math.max(2, Math.min(10, (available - (base.weeks - 1) * gap) / base.weeks));
+  const model = analysis.rollingSixMonthHeatmap(daily, { cell, gap });
   const chart = byId('heatmap-chart');
   chart.replaceChildren();
+  const suppliedDates = new Set(daily.map((day) => day.date));
   chart.style.width = `${model.width}px`;
   chart.style.height = `${model.height + 16}px`;
   for (const cell of model.cells) {
-    const element = document.createElement('i');
-    element.className = `heatmap-cell level-${cell.intensity}`;
-    element.style.left = `${cell.x}px`;
-    element.style.top = `${cell.y}px`;
-    element.style.width = `${cell.size}px`;
-    element.style.height = `${cell.size}px`;
-    element.title = `${cell.date}: ${exact.format(cell.tokens)} tokens`;
-    chart.append(element);
+    const node = element('i', undefined, `heatmap-cell level-${cell.intensity}`);
+    Object.assign(node.style, { left: `${cell.x}px`, top: `${cell.y}px`, width: `${cell.size}px`, height: `${cell.size}px` });
+    const date = new Date(cell.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    usageTooltip(node, `${date}\n` + (suppliedDates.has(cell.date) ? cell.tokens ? exact.format(cell.tokens) + ' tokens' : 'No usage' : 'Not provided by official API'));
+    chart.append(node);
   }
   for (const month of model.monthLabels) {
-    const label = document.createElement('span');
-    label.className = 'heatmap-month';
+    const label = element('span', new Date(month.label + '-01T12:00:00').toLocaleDateString('en-US', { month: 'short' }), 'heatmap-month');
     label.style.left = `${month.column * (model.cell + model.gap)}px`;
     label.style.top = `${model.height + 3}px`;
-    label.textContent = month.label.slice(5);
     chart.append(label);
   }
 }
-
-function renderAnalysisRows(id, entries, { topCount = null } = {}) {
-  const container = byId(id);
-  container.replaceChildren();
-  const rows = entries
-    .map(([label, value]) => [String(label || ''), number(value)])
-    .filter(([label, value]) => label && value > 0)
-    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
-  const visibleRows = Number.isInteger(topCount)
-    ? modelRows.topWithOther(rows, topCount)
-    : rows;
-  const max = Math.max(1, ...visibleRows.map(([, value]) => value));
-  for (const [label, value] of visibleRows) {
-    const row = document.createElement('div');
-    row.className = 'analysis-row';
-    const name = document.createElement('span');
-    name.textContent = label;
-    const total = document.createElement('strong');
-    total.textContent = exact.format(value);
-    const track = document.createElement('i');
-    track.className = 'analysis-track';
-    const fill = document.createElement('b');
-    fill.className = 'analysis-fill';
-    fill.style.width = `${value / max * 100}%`;
-    track.append(fill);
-    row.append(name, total, track);
-    container.append(row);
-  }
-  if (!rows.length) {
-    const empty = document.createElement('p');
-    empty.className = 'muted';
-    empty.textContent = 'No local usage data';
-    container.append(empty);
-  }
-}
-
-function renderAnalysisOverview() {
-  const history = state.stats?.history || {};
-  const summary = history.summary || {};
-  renderHeatmap();
-  setText('active-days', exact.format(number(summary.activeDays)));
-  setText('current-streak', exact.format(number(summary.currentStreak)));
-  setText('longest-streak', exact.format(number(summary.longestStreak)));
-  setText('peak-day', format.format(number(summary.peakDayTokens)));
-  setText('history-messages', exact.format(number(summary.messages)));
-  setText('favorite-model', summary.favoriteModel || '—');
-}
-
-function renderAnalysisModels() {
-  const models = state.stats?.periods?.allTime?.models || {};
-  renderAnalysisRows('analysis-model-list', Object.entries(models), { topCount: 10 });
-}
-
-function renderAnalysisProjects() {
-  const projects = state.stats?.periods?.allTime?.projects || {};
-  const entries = Object.entries(projects).map(([key, project]) => [
-    project?.label || key,
-    project?.tokens
-  ]);
-  renderAnalysisRows('analysis-project-list', entries, { topCount: 10 });
-}
-
-function renderAnalysisDates() {
-  renderTrendChart('daily-trend-chart');
-  const monthly = state.stats?.history?.monthly || [];
-  renderAnalysisRows('monthly-list', monthly.map((month) => [month.month, month.tokens]));
-}
-
-function renderAnalysis() {
-  const sections = {
-    overview: 'analysis-overview',
-    models: 'analysis-models',
-    projects: 'analysis-projects',
-    dates: 'analysis-dates'
-  };
-  for (const [key, id] of Object.entries(sections)) {
-    byId(id).hidden = key !== state.analysisTab;
-  }
-  document.querySelectorAll('.analysis-tab').forEach((button) => {
-    button.classList.toggle('active', button.dataset.analysis === state.analysisTab);
-  });
-  if (state.analysisTab === 'overview') renderAnalysisOverview();
-  else if (state.analysisTab === 'models') renderAnalysisModels();
-  else if (state.analysisTab === 'projects') renderAnalysisProjects();
-  else renderAnalysisDates();
-}
-
-function render({ preserveTotal = false } = {}) {
-  if (!preserveTotal) clearTotalUpdates();
+function renderStatus() {
   const stats = state.stats || {};
-  const isAnalysis = state.view === 'analysis';
-  byId('view-select').value = state.view;
-  byId('overview-tabs').hidden = isAnalysis;
-  byId('analysis-tabs').hidden = !isAnalysis;
-  byId('summary-view').hidden = isAnalysis;
-  byId('analysis-view').hidden = !isAnalysis;
-  document.querySelectorAll('.period').forEach((button) => {
-    button.classList.toggle('active', button.dataset.period === state.period);
-  });
-  byId('error').hidden = !stats.error;
-  byId('error').textContent = stats.error || '';
-  if (isAnalysis) {
-    renderAnalysis();
-    return;
+  const container = byId('status-details'); container.replaceChildren();
+  detail(container, 'Plan', metrics.planLabel(stats.planType));
+  detail(container, 'Codex CLI', stats.cliStatus || 'Waiting');
+  detail(container, 'Official data source', stats.status || 'loading');
+  detail(container, 'Last successful refresh', stats.collectedAt ? new Date(stats.collectedAt).toLocaleString('en-US') : 'No successful request yet');
+  setText('diagnostics-toggle', `Status: ${stats.cliStatus === 'connected' && !stats.error ? 'Connected' : stats.status === 'loading' ? 'Waiting' : 'Needs attention'}`);
+  for (const [key, method] of [['usage', 'account/usage/read'], ['limits', 'account/rateLimits/read']]) {
+    const timestamp = stats[key + 'UpdatedAt'];
+    detail(container, method, stats.errors?.[key] ? `${stats.errors[key].code}: ${stats.errors[key].message}` : timestamp ? 'Ready' : 'Waiting', timestamp ? 'Last successful client request: ' + new Date(timestamp).toLocaleString('en-US') : null);
   }
-  const period = stats.periods?.[state.period] || {};
-  const values = components(period);
-  if (!preserveTotal) setTotalValues(values.total);
-  setText('input', format.format(values.input));
-  setText('cached', format.format(values.cached));
-  setText('output', format.format(values.output));
-  setText('reasoning', format.format(reasoning(period)));
-  setText('sessions', exact.format(Object.keys(period.sessions || {}).length));
-  setText('models-count', exact.format(Object.keys(period.models || {}).length));
-  setText('model-period', { today: 'Today', month: 'This Month', allTime: 'All Time' }[state.period]);
-  setText('updated', stats.collectedAt ? new Date(stats.collectedAt).toLocaleTimeString('en-US') : 'Waiting for local logs');
-  renderModels(period);
-  renderSessions(period);
 }
-
-function applyStats(stats, { animate = false } = {}) {
-  const previous = components(state.stats?.periods?.[state.period]).total;
-  const next = components(stats?.periods?.[state.period]).total;
-  const canAnimate = animate && state.stats && state.view === 'overview';
-  const totalTransition = canAnimate
-    ? tokenTransition.positiveDelta(previous, next)
-    : null;
-  const preserveTotal = Boolean(totalTransition)
-    || (canAnimate && next === previous && hasTotalUpdateInProgress());
-  state.stats = stats;
-  render({ preserveTotal });
-  if (totalTransition) queueTotalTransition(totalTransition);
+function render() {
+  byId('usage-tooltip').hidden = true;
+  const stats = state.stats || {};
+  const daily = stats.history?.daily || [];
+  const derived = metrics.activity(daily);
+  const summary = stats.history?.summary || {};
+  const plan = metrics.planLabel(stats.planType);
+  byId('plan-badge').hidden = !plan;
+  setText('plan-badge', plan || '');
+  byId('plan-badge').title = plan || '';
+  const failure = Boolean(stats.error) || stats.cliStatus === 'disconnected' && stats.status !== 'loading';
+  document.documentElement.dataset.connection = failure ? 'attention' : 'ready';
+  byId('error').hidden = !failure;
+  setText('error', failure ? 'Official data temporarily unavailable' + (stats.collectedAt ? ' · Last updated ' + new Date(stats.collectedAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : '') : '');
+  byId('error').title = stats.error || 'CLI disconnected';
+  setText('source-status', 'Official');
+  setText('updated', stats.collectedAt ? '· Updated ' + new Date(stats.collectedAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : '· Waiting for official usage');
+  byId('updated').title = `Client fetch times · Activity: ${stats.usageUpdatedAt || 'unavailable'} · Limits: ${stats.limitsUpdatedAt || 'unavailable'}`;
+  optionalStat('total', stats.periods?.allTime?.totalTokens);
+  byId('total').title = Number.isSafeInteger(stats.periods?.allTime?.totalTokens) ? exact.format(stats.periods.allTime.totalTokens) + ' tokens' : '';
+  optionalStat('today', derived.today);
+  optionalStat('month', derived.month?.tokens);
+  byId('month-card').title = 'Calculated from official daily activity' + (derived.month?.partial ? ' · partial' : '');
+  optionalStat('peak-day', summary.peakDayTokens);
+  optionalStat('current-streak', summary.currentStreak, summary.currentStreak === null || summary.currentStreak === undefined ? null : `${summary.currentStreak} days`);
+  optionalStat('longest-streak', summary.longestStreak, summary.longestStreak === null || summary.longestStreak === undefined ? null : `${summary.longestStreak} days`);
+  optionalStat('longest-turn', summary.longestRunningTurnSec, metrics.duration(summary.longestRunningTurnSec));
+  optionalStat('active-days', daily.length ? derived.activeDays : null);
+  byId('active-days-card').title = `${derived.sixMonthStart} – ${derived.endDate}; counts only supplied buckets with tokens > 0`;
+  renderLimits(); renderTrendChart(); renderHeatmap(); renderStatus();
 }
-
-function applyTheme(theme) {
-  document.documentElement.dataset.theme = theme || 'system';
+function applyStats(stats) { state.stats = stats; render(); }
+function applyTheme(theme = 'system') {
+  document.documentElement.dataset.theme = theme;
+  document.documentElement.dataset.appearance = theme === 'system' ? (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark') : theme;
+  setText('theme-toggle', { system: '◐', dark: '☾', light: '☀' }[theme]);
+  byId('theme-toggle').title = `Theme: ${metrics.planLabel(theme)}`; byId('theme-toggle').setAttribute('aria-label', byId('theme-toggle').title);
 }
-
-function setSettingsOpen(open, { restoreFocus = true } = {}) {
-  const sheet = byId('settings-sheet');
-  const backdrop = byId('settings-backdrop');
-  const trigger = byId('settings-trigger');
-  const triggerLabel = open ? 'Close Local Settings & Export' : 'Open Local Settings & Export';
-  trigger.setAttribute('aria-expanded', String(open));
-  trigger.setAttribute('aria-label', triggerLabel);
-  trigger.title = triggerLabel;
-  sheet.hidden = !open;
-  backdrop.hidden = !open;
-  for (const child of byId('app').children) {
-    if (child !== sheet && child !== backdrop && !child.classList.contains('titlebar')) child.inert = open;
-  }
-  for (const child of document.querySelectorAll('.titlebar > :not(.window-actions), .window-actions > :not(#settings-trigger)')) {
-    child.inert = open;
-  }
-  if (open) byId('settings-close').focus();
-  else if (restoreFocus) trigger.focus();
+function applySettings(settings) {
+  state.settings = settings; applyTheme(settings.theme);
+  byId('pin-toggle').setAttribute('aria-pressed', String(settings.alwaysOnTop)); byId('pin-toggle').classList.toggle('active', settings.alwaysOnTop);
+  byId('opacity').value = Math.round(settings.opacity * 100); setText('opacity-value', `${byId('opacity').value}%`);
+  byId('refresh-interval').value = settings.refreshIntervalSec ?? 300;
 }
-
-async function loadSettings() {
-  state.settings = await api.settings.get();
-  byId('always-on-top').checked = state.settings.alwaysOnTop;
-  byId('opacity').value = Math.round(state.settings.opacity * 100);
-  setText('opacity-value', `${byId('opacity').value}%`);
-  byId('theme').value = state.settings.theme;
-  applyTheme(state.settings.theme);
-  if (state.settings.exportDir) setText('export-status', `Export directory: ${state.settings.exportDir}`);
+async function updateSettings(patch) { applySettings(await api.settings.update(patch)); }
+function setSettingsOpen(open) {
+  byId('settings-popover').hidden = !open; byId('settings-trigger').setAttribute('aria-expanded', String(open));
+  if (open) byId('opacity').focus(); else byId('settings-trigger').focus();
 }
-
-async function updateSettings(patch) {
-  state.settings = await api.settings.update(patch);
-  applyTheme(state.settings.theme);
-}
-
-document.querySelectorAll('.period').forEach((button) => {
-  button.addEventListener('click', () => {
-    state.period = button.dataset.period;
-    render();
-  });
-});
-byId('view-select').addEventListener('change', (event) => {
-  state.view = event.target.value === 'analysis' ? 'analysis' : 'overview';
-  render();
-});
-document.querySelectorAll('.analysis-tab').forEach((button) => {
-  button.addEventListener('click', () => {
-    state.analysisTab = button.dataset.analysis;
-    render();
-  });
-});
-byId('refresh').addEventListener('click', async () => {
+async function refreshOfficial() {
   byId('refresh').disabled = true;
-  try {
-    const stats = await api.stats.refresh();
-    if (stats.collectedAt !== state.stats?.collectedAt) applyStats(stats, { animate: true });
-  } finally {
-    byId('refresh').disabled = false;
-  }
-});
-byId('always-on-top').addEventListener('change', (event) => updateSettings({ alwaysOnTop: event.target.checked }));
-byId('opacity').addEventListener('input', (event) => {
-  setText('opacity-value', `${event.target.value}%`);
-});
-byId('opacity').addEventListener('change', (event) => updateSettings({ opacity: number(event.target.value) / 100 }));
-byId('theme').addEventListener('change', (event) => updateSettings({ theme: event.target.value }));
-byId('choose-export').addEventListener('click', async () => {
-  const selected = await api.exports.chooseDirectory();
-  if (selected) setText('export-status', `Export directory: ${selected}`);
-});
-byId('export-now').addEventListener('click', async () => {
-  try {
-    const result = await api.exports.write();
-    setText('export-status', `Generated: ${result.files.join(', ')}`);
-  } catch (error) {
-    setText('export-status', error.message);
-  }
-});
-byId('open-export').addEventListener('click', () => api.exports.openDirectory());
-byId('open-user-data').addEventListener('click', () => api.app.openUserData());
-byId('settings-trigger').addEventListener('click', () => setSettingsOpen(byId('settings-sheet').hidden));
+  try { applyStats(await api.stats.refresh()); }
+  catch (error) { byId('error').hidden = false; setText('error', 'Official data temporarily unavailable: ' + error.message); }
+  finally { byId('refresh').disabled = false; }
+}
+byId('refresh').addEventListener('click', refreshOfficial);
+byId('theme-toggle').addEventListener('click', () => { const themes = ['system', 'dark', 'light']; updateSettings({ theme: themes[(themes.indexOf(state.settings?.theme || 'system') + 1) % themes.length] }); });
+byId('pin-toggle').addEventListener('click', () => updateSettings({ alwaysOnTop: !state.settings?.alwaysOnTop }));
+byId('opacity').addEventListener('input', (event) => setText('opacity-value', `${event.target.value}%`));
+byId('opacity').addEventListener('change', (event) => updateSettings({ opacity: Number(event.target.value) / 100 }));
+byId('refresh-interval').addEventListener('change', (event) => updateSettings({ refreshIntervalSec: Number(event.target.value) }));
+byId('settings-trigger').addEventListener('click', () => setSettingsOpen(byId('settings-popover').hidden));
 byId('settings-close').addEventListener('click', () => setSettingsOpen(false));
-byId('settings-backdrop').addEventListener('click', () => setSettingsOpen(false));
-document.addEventListener('keydown', (event) => {
-  if (event.key === 'Escape' && !byId('settings-sheet').hidden) setSettingsOpen(false);
-});
-byId('minimize').addEventListener('click', () => api.window.minimize());
-byId('hide').addEventListener('click', () => api.window.hide());
-byId('collapse').addEventListener('click', async () => {
-  if (!byId('settings-sheet').hidden) setSettingsOpen(false, { restoreFocus: false });
-  await api.window.collapse();
-  byId('app').hidden = true;
-  byId('compact').hidden = false;
-});
-byId('expand').addEventListener('click', async () => {
-  await api.window.expand();
-  byId('compact').hidden = true;
-  byId('app').hidden = false;
-});
-
-api.stats.onChanged((stats) => {
-  applyStats(stats, { animate: true });
-});
-
-Promise.all([api.stats.get(), loadSettings()]).then(([stats]) => {
-  applyStats(stats);
-});
+byId('diagnostics-toggle').addEventListener('click', () => { const details = byId('status-details'); details.hidden = !details.hidden; byId('diagnostics-toggle').setAttribute('aria-expanded', String(!details.hidden)); });
+document.addEventListener('keydown', (event) => { if (event.key === 'Escape' && !byId('settings-popover').hidden) setSettingsOpen(false); });
+document.addEventListener('pointerdown', (event) => { if (!byId('settings-popover').hidden && !byId('settings-popover').contains(event.target) && !byId('settings-trigger').contains(event.target)) setSettingsOpen(false); });
+byId('minimize').addEventListener('click', () => api.window.minimize()); byId('hide').addEventListener('click', () => api.window.hide());
+byId('collapse').addEventListener('click', async () => { setSettingsOpen(false); await api.window.collapse(); byId('app').hidden = true; byId('compact').hidden = false; });
+byId('expand').addEventListener('click', async () => { await api.window.expand(); byId('compact').hidden = true; byId('app').hidden = false; });
+api.stats.onChanged(applyStats);
+Promise.all([api.stats.get(), api.settings.get()]).then(([stats, settings]) => { applySettings(settings); applyStats(stats); });
+window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', () => applyTheme(state.settings?.theme)); window.addEventListener('resize', renderHeatmap);
+// Relative labels and calendar aggregates update without an RPC request.
+setInterval(render, 60000);

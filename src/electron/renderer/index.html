@@ -4,172 +4,19 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'">
-  <title>Codex Offline Monitor</title>
+  <title>Codex Usage HUD</title>
   <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
-  <section id="compact" class="compact" hidden>
-    <div class="compact-drag-region">
-      <span class="live-dot"></span>
-      <strong id="compact-total">0</strong>
-    </div>
-    <button id="expand" class="compact-expand" type="button" title="Expand full monitor" aria-label="Expand full monitor">
-      ↗
-    </button>
-  </section>
-
-  <main id="app">
-    <header class="titlebar">
-      <h1 class="titlebar-title"><span class="live-dot"></span>Codex Token Monitor</h1>
-      <div class="window-actions">
-        <button id="settings-trigger" type="button" title="Open Local Settings &amp; Export" aria-label="Open Local Settings &amp; Export" aria-expanded="false" aria-controls="settings-sheet">⌄</button>
-        <button id="refresh" type="button" title="Refresh local logs" aria-label="Refresh local logs">↻</button>
-        <button id="collapse" type="button" title="Collapse to floating mode">◒</button>
-        <button id="minimize" type="button" title="Minimize">—</button>
-        <button id="hide" type="button" title="Hide to system tray">×</button>
-      </div>
-    </header>
-
-    <section class="view-controls">
-      <label class="view-selector">
-        <select id="view-select" aria-label="Primary view">
-          <option value="overview">Overview</option>
-          <option value="analysis">Analytics</option>
-        </select>
-      </label>
-      <nav id="overview-tabs" class="secondary-tabs period-tabs" aria-label="Usage period">
-        <button class="period active" data-period="today" type="button">Today</button>
-        <button class="period" data-period="month" type="button">This Month</button>
-        <button class="period" data-period="allTime" type="button">All Time</button>
-      </nav>
-      <nav id="analysis-tabs" class="secondary-tabs analysis-tabs" aria-label="Analytics dimension" hidden>
-        <button class="analysis-tab active" data-analysis="overview" type="button">Overview</button>
-        <button class="analysis-tab" data-analysis="models" type="button">Models</button>
-        <button class="analysis-tab" data-analysis="projects" type="button">Projects</button>
-        <button class="analysis-tab" data-analysis="dates" type="button">Trends</button>
-      </nav>
-    </section>
-
-    <div id="content-stage" class="content-stage">
-      <p id="error" class="error" hidden></p>
-
-      <section id="summary-view">
-        <div class="hero">
-          <div class="hero-labels">
-            <span>Total Tokens</span>
-            <div class="updated-line">
-              <span>Last Updated</span>
-              <small id="updated">Waiting for local logs</small>
-            </div>
-          </div>
-          <div class="total-line">
-            <strong id="total">0</strong>
-            <em id="total-delta" class="total-delta" hidden>+0</em>
-          </div>
-        </div>
-        <div class="metrics">
-          <article><span>Input Tokens</span><strong id="input">0</strong></article>
-          <article><span>Cached Input</span><strong id="cached">0</strong></article>
-          <article><span>Output Tokens</span><strong id="output">0</strong></article>
-          <article><span>Reasoning Tokens</span><strong id="reasoning">0</strong></article>
-          <article><span>Sessions</span><strong id="sessions">0</strong></article>
-          <article><span>Models</span><strong id="models-count">0</strong></article>
-        </div>
-        <section class="panel">
-          <div class="panel-title"><h2>Models</h2><span id="model-period"></span></div>
-          <div id="models" class="model-list"></div>
-        </section>
-        <section class="panel">
-          <div class="panel-title"><h2>Recent Sessions</h2></div>
-          <div id="recent-sessions" class="session-list"></div>
-        </section>
-      </section>
-
-      <section id="analysis-view" class="analysis-view" hidden>
-        <section id="analysis-overview">
-          <section class="panel">
-            <div class="panel-title"><h2>Activity Heatmap</h2><span>Last 6 Months</span></div>
-            <div id="heatmap-scroll" class="heatmap-scroll">
-              <div id="heatmap-chart" class="heatmap-chart" aria-label="Daily token activity heatmap"></div>
-            </div>
-          </section>
-          <section class="panel">
-            <div class="panel-title"><h2>Usage Summary</h2></div>
-            <div class="metrics analysis-metrics">
-              <article><span>Active Days</span><strong id="active-days">0</strong></article>
-              <article><span>Current Streak</span><strong id="current-streak">0</strong></article>
-              <article><span>Longest Streak</span><strong id="longest-streak">0</strong></article>
-              <article><span>Peak Daily Tokens</span><strong id="peak-day">0</strong></article>
-              <article><span>Messages</span><strong id="history-messages">0</strong></article>
-              <article><span>Top Model</span><strong id="favorite-model">—</strong></article>
-            </div>
-          </section>
-        </section>
-
-        <section id="analysis-models" hidden>
-          <section class="panel">
-            <div class="panel-title"><h2>Model Usage</h2><span>All Time</span></div>
-            <div id="analysis-model-list" class="analysis-list"></div>
-          </section>
-        </section>
-
-        <section id="analysis-projects" hidden>
-          <section class="panel">
-            <div class="panel-title"><h2>Project Usage</h2><span>All Time</span></div>
-            <div id="analysis-project-list" class="analysis-list"></div>
-          </section>
-        </section>
-
-        <section id="analysis-dates" hidden>
-          <section class="panel trend-panel">
-            <div class="panel-title"><h2>Usage Trends</h2><span>Last 28 Active Days</span></div>
-            <div id="daily-trend-chart" class="trend-chart" aria-label="Daily token usage trend"></div>
-          </section>
-          <section class="panel">
-            <div class="panel-title"><h2>Monthly Usage</h2></div>
-            <div id="monthly-list" class="analysis-list"></div>
-          </section>
-        </section>
-      </section>
-    </div>
-
-    <button id="settings-backdrop" class="settings-backdrop" type="button" aria-label="Close Local Settings &amp; Export" hidden></button>
-    <section id="settings-sheet" class="settings-sheet" role="dialog" aria-modal="true" aria-labelledby="settings-title" hidden>
-      <button id="settings-close" class="settings-close" type="button">
-        <span aria-hidden="true">⌃</span>
-        <span id="settings-title">Local Settings &amp; Export</span>
-      </button>
-      <div class="settings-body">
-        <label class="setting-row">
-          <span>Always on Top</span>
-          <input id="always-on-top" type="checkbox">
-        </label>
-        <label class="setting-column">
-          <span>Window Opacity <output id="opacity-value">94%</output></span>
-          <input id="opacity" type="range" min="55" max="100" step="1">
-        </label>
-        <label class="setting-column">
-          <span>Theme</span>
-          <select id="theme">
-            <option value="system">System</option>
-            <option value="dark">Dark</option>
-            <option value="light">Light</option>
-          </select>
-        </label>
-        <div class="export-actions">
-          <button id="choose-export" type="button">Choose Export Folder</button>
-          <button id="export-now" type="button">Export JSON / CSV</button>
-          <button id="open-export" type="button">Open Export Folder</button>
-          <button id="open-user-data" type="button">Open App Data</button>
-        </div>
-        <p id="export-status" class="muted">No export folder selected</p>
-      </div>
-    </section>
-  </main>
-  <script src="./modelRows.js"></script>
-  <script src="./sessionRows.js"></script>
-  <script src="./analysis.js"></script>
-  <script src="./tokenTransition.js"></script>
-  <script src="./app.js"></script>
-</body>
-</html>
+<section id="compact" class="compact" hidden><span class="compact-drag-region" title="Drag to move"><span class="live-dot"></span></span><button id="expand" class="compact-expand" title="Expand usage HUD"><strong id="compact-quota">Waiting for limits</strong></button></section>
+<main id="app">
+<header class="titlebar"><h1 class="titlebar-title"><span class="live-dot"></span>CODEX USAGE <small id="plan-badge" class="plan-badge" hidden></small></h1><div class="window-actions">
+<button id="theme-toggle" title="Theme: System" aria-label="Theme: System">◐</button><button id="refresh" title="Refresh official usage" aria-label="Refresh official usage">↻</button><button id="pin-toggle" title="Always on Top" aria-label="Always on Top" aria-pressed="false">📌</button><button id="settings-trigger" title="Settings" aria-label="Settings" aria-expanded="false" aria-controls="settings-popover">⚙</button><button id="collapse" title="Mini mode" aria-label="Mini mode">◒</button><button id="minimize" title="Minimize" aria-label="Minimize">−</button><button id="hide" title="Hide to system tray" aria-label="Hide to system tray">×</button>
+</div></header>
+<div id="content-stage" class="content-stage"><div class="updated-line"><span id="source-status">Official</span><small id="updated">· Waiting for official usage</small></div><p id="error" class="error" hidden></p><p id="limit-warning" class="error" hidden></p><div id="limits" class="limits-grid"></div><p id="limits-unavailable" class="muted" hidden>Waiting for official limits</p>
+<div class="metrics primary-stats"><article id="today-card" hidden><span>Today</span><strong id="today"></strong></article><article id="month-card" hidden><span>Month to date</span><strong id="month"></strong></article><article id="total-card" hidden><span>Lifetime</span><strong id="total"></strong></article></div>
+<div class="metrics secondary-stats"><article id="peak-day-card" hidden><span>Peak Day</span><strong id="peak-day"></strong></article><article id="current-streak-card" hidden><span>Streak</span><strong id="current-streak"></strong></article><article id="longest-streak-card" hidden><span>Longest streak</span><strong id="longest-streak"></strong></article><article id="longest-turn-card" hidden><span>Longest turn</span><strong id="longest-turn"></strong></article><article id="active-days-card" hidden><span>Active Days</span><strong id="active-days"></strong></article></div>
+<section id="trend-panel" class="trend-row" hidden><h2>Last 28 Days</h2><div id="daily-trend-chart" class="trend-chart" aria-label="Daily token usage sparkline"></div></section>
+<section id="heatmap-panel" class="panel" hidden><div class="panel-title"><h2>Activity</h2><span>Last 6 Months</span></div><div id="heatmap-chart" class="heatmap-chart" aria-label="Daily token activity heatmap"></div></section><p id="credit-info" class="muted" hidden></p></div>
+<section id="settings-popover" class="settings-popover" role="dialog" aria-label="Settings" hidden><div class="popover-heading"><strong>Settings</strong><button id="settings-close" aria-label="Close settings">×</button></div><label class="setting-column"><span>Opacity <output id="opacity-value">94%</output></span><input id="opacity" type="range" min="55" max="100" step="1"></label><label class="setting-column"><span>Refresh</span><select id="refresh-interval"><option value="60">1 min</option><option value="300">5 min</option><option value="900">15 min</option><option value="0">Manual</option></select></label><button id="diagnostics-toggle" aria-expanded="false" aria-controls="status-details">Status: Waiting</button><div id="status-details" hidden></div></section></main>
+<div id="usage-tooltip" class="usage-tooltip" role="tooltip" hidden></div><script src="../../shared/usageMetrics.js"></script><script src="./analysis.js"></script><script src="./app.js"></script></body></html>

@@ -2,7 +2,7 @@
   "name": "codex-offline-monitor",
   "productName": "Codex Offline Monitor",
   "version": "0.34.0",
-  "description": "A strictly local, offline Electron monitor for Codex JSONL session logs.",
+  "description": "An Electron widget displaying official Codex account usage through app-server stdio.",
   "main": "src/electron/main.js",
   "scripts": {
     "start": "electron .",
@@ -73,8 +73,8 @@
       ],
       "category": "Development",
       "icon": "assets/icon.png",
-      "synopsis": "Offline local Codex usage monitor",
-      "description": "Reads Codex JSONL session logs locally without network access."
+      "synopsis": "Official Codex usage monitor",
+      "description": "An Electron widget displaying official Codex account usage through app-server stdio."
     },
     "nsis": {
       "artifactName": "Codex-Offline-Monitor-Setup-${version}.${ext}"
@@ -87,9 +87,7 @@
     "codex",
     "token-usage",
     "electron",
-    "desktop-widget",
-    "offline",
-    "local-only"
+    "desktop-widget"
   ],
   "author": "icebrent",
   "license": "MIT",

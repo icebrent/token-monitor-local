@@ -21,15 +21,16 @@ function sourceFiles(directory) {
 const sources = sourceFiles(sourceRoot)
   .map((file) => ({ file, text: fs.readFileSync(file, 'utf8') }));
 
-test('runtime source has no server, socket, child process, or native addon entry', () => {
+test('runtime has no network or process capability outside the official client', () => {
   const forbidden = [
     /require\(['"](?:node:)?(?:http|https|http2|net|tls|dgram)['"]\)/,
     /\.\s*listen\s*\(/,
-    /require\(['"](?:node:)?child_process['"]\)/,
-    /\b(?:spawn|execFile|fork)\s*\(/,
     /require\(['"](?:koffi|ffi-napi|node-gyp-build)['"]\)/
   ];
   for (const { file, text } of sources) {
+    if (!file.endsWith('codexAppServerClient.js')) {
+      assert.doesNotMatch(text, /require\(['"](?:node:)?child_process['"]\)|\b(?:spawn|execFile|fork)\s*\(/);
+    }
     for (const pattern of forbidden) {
       assert.doesNotMatch(text, pattern, `${path.relative(root, file)} matches ${pattern}`);
     }
@@ -53,9 +54,7 @@ test('removed remote and credential subsystems have no runtime files', () => {
 test('renderer cannot provide a scan root or arbitrary openPath target', () => {
   const preload = fs.readFileSync(path.join(root, 'src/electron/preload.js'), 'utf8');
   assert.doesNotMatch(preload, /CODEX_HOME|sessionsRoot|openPath\s*:\s*\([^)]/);
-  assert.match(preload, /openUserData:\s*\(\)/);
-  assert.match(preload, /openDirectory:\s*\(\)/);
-  assert.match(preload, /openLatest:\s*\(\)/);
+  assert.doesNotMatch(preload, /openUserData|openDirectory|openLatest|exports:/);
 });
 
 test('production dependency and package surfaces contain no removed integration', () => {

@@ -20,23 +20,15 @@ Node.js 22.13 or newer is required.
 
 ## Architecture and invariants
 
-- `src/electron/main.js` owns the window, tray, fixed Codex root, local watcher,
-  settings, exports, and IPC.
-- `src/electron/offlinePolicy.js` owns request cancellation, permission denial,
-  CSP response headers, and navigation/window/webview restrictions.
-- `src/shared/localPaths.js` canonicalizes `${CODEX_HOME:-~/.codex}` once and
-  fixes its `sessions` child as the only scan root.
-- `src/shared/codexJsonlParser.js` reads regular JSONL files without following
-  symlinks or junctions and performs cumulative token accounting.
-- `src/shared/exporter.js` serializes the current local snapshot to fixed
-  JSON/CSV filenames.
-- The renderer receives no arbitrary scan-root or open-path capability.
-
-The runtime must remain offline. Do not add HTTP clients, sockets, listeners,
-child processes, native addons, OAuth, credentials, provider APIs, update
-checks, external URLs, sync, hub/agent runtimes, or additional AI-tool scan
-roots. `webRequest` and CSP are defense in depth; physical absence of network
-and process-capable code is the primary guarantee.
-
-Do not add dependencies without discussing the need first. Keep README file
-boundaries and the automated offline audit aligned with any intentional change.
+- Electron main owns window/tray/settings and official usage IPC.
+- Only codexAppServerClient.js may spawn the installed official Codex native
+  executable, with fixed app-server stdio arguments and shell disabled.
+- Token activity comes only from account/usage/read (no threadId estimates).
+- Limits come only from account/rateLimits/read. Never mix local session tokens.
+- Legacy parser/localPaths remain for debug and legacy tests, never production scans.
+- Renderer keeps offlinePolicy.js network/CSP/permission/navigation restrictions.
+- Never read, copy, log or store credentials or implement OAuth. Authentication
+  and backend network access belong to official Codex CLI.
+- No HTTP clients, sockets/listeners, native addons, update checks, external URLs,
+  sync, hub/agent runtimes or arbitrary renderer command/path capabilities.
+- No new dependencies without discussion. Keep README and security audit aligned.
