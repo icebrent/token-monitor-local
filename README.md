@@ -36,7 +36,8 @@ Renderer → preload IPC → Electron main → codexAppServerClient
 - 工具栏提供 Theme（System → Dark → Light）、Refresh、单色线条 SVG 置顶 pin（On/Off tooltip 与 accent 边框/背景）、Preferences、mini mode、最小化和隐藏。
   System 跟随系统主题。设置小弹层保留透明度、1/5/15 分钟或 Manual 刷新，默认 5 分钟；
   Status 点击展开 RPC diagnostics，正常主界面只显示 `Official · Updated HH:mm`。
-- mini mode 显示 `5h 71% · W 23%`，只显示有数据的窗口；hover 显示 remaining 和 reset，
+- mini mode 将 `5h 71%` 与 `W 23%` 分组，以淡竖线分隔；灰色小标签搭配等宽数字和 2px 剩余进度条。
+  剩余 >30% 为薄荷绿、>10% 且 ≤30% 为琥珀色、≤10% 为柔和红色，适配深浅主题；只显示有数据的窗口。hover 显示 remaining 和 reset，
   点击额度恢复展开窗口，左侧状态点区域可拖动。
 - Credits 仅作为顶部条件小卡片：零 balance / 零 reset credits 隐藏；有 reset credits、非零 balance、
   Unlimited 或 individual limit 时显示。异常状态才显示警告。

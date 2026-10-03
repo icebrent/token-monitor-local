@@ -47,6 +47,7 @@ function optionalStat(id, value, label = null) {
 }
 function renderLimits() {
   const container = byId('limits'); container.replaceChildren();
+  const compact = byId('compact-quota'); compact.replaceChildren();
   const warnings = []; const credits = []; const mini = []; const miniDetails = [];
   if (state.stats?.ordinaryUsageAllowed === false) warnings.push('Ordinary included usage is currently unavailable');
   const windows = (state.stats?.limits || []).flatMap((bucket) => bucket.windows.map((limit) => ({ bucket, limit })));
@@ -63,7 +64,20 @@ function renderLimits() {
     if (reset) { const text = element('p', reset.text, 'reset'); text.title = reset.title; card.append(text); }
     if ((state.stats?.limits.length || 0) > 1) card.append(element('small', bucket.name, 'muted'));
     if (remaining <= 10) card.classList.add('quota-low'); container.append(card);
-    if ([300, 10080].includes(limit.windowDurationMins)) { mini.push(`${limit.windowDurationMins === 300 ? '5h' : 'W'} ${remaining}%`); miniDetails.push(`${duration}\n${remaining}% remaining` + (reset ? `\n${reset.text}\n${reset.title}` : '')); }
+    if ([300, 10080].includes(limit.windowDurationMins)) {
+      const label = limit.windowDurationMins === 300 ? '5h' : 'W';
+      const tone = remaining <= 10 ? 'low' : remaining <= 30 ? 'warning' : 'healthy';
+      const group = element('span', undefined, `compact-quota-group quota-${tone}`);
+      const heading = element('span', undefined, 'compact-quota-heading');
+      heading.append(element('span', `${label} `, 'compact-quota-label'), element('strong', `${remaining}%`, 'compact-quota-value'));
+      const miniTrack = element('span', undefined, 'compact-quota-track');
+      miniTrack.setAttribute('aria-hidden', 'true');
+      const miniFill = element('span', undefined, 'compact-quota-fill'); miniFill.style.width = `${remaining}%`; miniTrack.append(miniFill);
+      group.append(heading, miniTrack);
+      if (mini.length) { const separator = element('span', ' ', 'compact-quota-separator'); separator.setAttribute('aria-hidden', 'true'); compact.append(separator); }
+      compact.append(group); mini.push(group);
+      miniDetails.push(`${duration}\n${remaining}% remaining` + (reset ? `\n${reset.text}\n${reset.title}` : ''));
+    }
   }
   for (const bucket of state.stats?.limits || []) {
     if (bucket.rateLimitReachedType) warnings.push(bucket.name + ': ' + bucket.rateLimitReachedType.replaceAll('_', ' '));
@@ -79,7 +93,9 @@ function renderLimits() {
   }
   const count = state.stats?.rateLimitResetCredits?.availableCount; if (count > 0) credits.unshift(`${count} reset credits available`);
   setText('credit-info', credits.join(' · ')); byId('credit-info').hidden = !credits.length;
-  setText('compact-quota', mini.join(' · ') || 'Limits unavailable'); byId('expand').title = miniDetails.join('\n\n') || 'Official limits unavailable · Click to expand';
+  if (!mini.length) compact.append(element('span', 'Limits unavailable', 'compact-quota-empty'));
+  const compactDetails = (miniDetails.join('\n\n') || 'Official limits unavailable') + '\nClick to expand';
+  byId('expand').title = compactDetails; byId('expand').setAttribute('aria-label', compactDetails);
   byId('limit-warning').hidden = !warnings.length; setText('limit-warning', warnings.join(' · ')); byId('limits-unavailable').hidden = container.children.length > 0;
 }
 function trendPoints() { return metrics.activity(state.stats?.history?.daily || []).trend; }

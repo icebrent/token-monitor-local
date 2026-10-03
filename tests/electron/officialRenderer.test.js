@@ -158,11 +158,32 @@ test('lifetime is compact with exact tooltip; mini shows both quota windows and 
     primary: { usedPercent: 29, windowDurationMins: 300, resetsAt: now.getTime() / 1000 + 3600 },
     secondary: { usedPercent: 77, windowDurationMins: 10080, resetsAt: now.getTime() / 1000 + 86400 } } }) });
   assert.equal(ui.get('total').textContent, '3.33B'); assert.equal(ui.get('total').title, '3,327,514,760 tokens');
-  assert.equal(ui.get('compact-quota').textContent, '5h 71% · W 23%');
+  assert.equal(ui.get('compact-quota').textContent, '5h 71% W 23%');
   assert.match(ui.get('expand').title, /71% remaining/); assert.match(ui.get('expand').title, /Resets in/);
   ui.changed({ ...emptyOfficial(), periods: { allTime: { totalTokens: 168000000 } } });
   assert.equal(ui.get('total').textContent, '168M');
 });
+test('mini quota severity follows remaining boundaries and refresh removes old groups', async () => {
+  const ui = renderer(); await new Promise(setImmediate);
+  for (const [remaining, tone] of [[100, 'healthy'], [31, 'healthy'], [30, 'warning'], [11, 'warning'], [10, 'low'], [0, 'low']]) {
+    ui.changed({ ...emptyOfficial(), limits: mapRateLimits({ rateLimits: {
+      primary: { usedPercent: 100 - remaining, windowDurationMins: 300, resetsAt: null },
+      secondary: { usedPercent: 14, windowDurationMins: 10080, resetsAt: null }
+    } }) });
+    const groups = ui.get('compact-quota').children;
+    assert.equal(groups.length, 3);
+    assert.equal(groups[0].className, `compact-quota-group quota-${tone}`);
+    assert.equal(groups[0].children[1].children[0].style.width, `${remaining}%`);
+    assert.equal(groups[1].attributes['aria-hidden'], 'true');
+    assert.equal(groups[2].className, 'compact-quota-group quota-healthy');
+    assert.match(ui.get('expand').attributes['aria-label'], new RegExp(`${remaining}% remaining`));
+  }
+  ui.changed(emptyOfficial());
+  assert.equal(ui.get('compact-quota').children.length, 1);
+  assert.equal(ui.get('compact-quota').textContent, 'Limits unavailable');
+  assert.match(ui.get('expand').attributes['aria-label'], /Official limits unavailable/);
+});
+
 test('empty credits hide and exact heatmap tooltip follows pointer without covering cell', async () => {
   const ui = renderer(); await new Promise(setImmediate);
   const date = '2026-10-02';
