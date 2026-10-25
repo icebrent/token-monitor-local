@@ -20,7 +20,7 @@ function renderer() {
     append(...items) { this.children.push(...items); }, replaceChildren() { this.children = []; }, listeners: {}, attributes: {}, addEventListener(event, handler) { this.listeners[event] = handler; }, setAttribute(key, value) { this.attributes[key] = value; }, removeAttribute(key) { delete this.attributes[key]; }, getBoundingClientRect() { return { width: 150, height: 50 }; }, focus() {} });
   const get = (id) => { assert.ok(ids.has(id), 'Missing real DOM id: ' + id); if (!elements.has(id)) elements.set(id, make()); return elements.get(id); };
   let changed;
-  let exposed; let settings = { opacity: 0.94, theme: 'system', alwaysOnTop: true, refreshIntervalSec: 300 };
+  let exposed; let settings = { opacity: 0.94, theme: 'system', refreshIntervalSec: 300 };
   const ipcRenderer = { invoke: async (channel, patch) => {
     if (channel === 'usage:getOfficial') return emptyOfficial();
     if (channel === 'settings:get') return settings;
@@ -135,18 +135,13 @@ test('production renderer has no session, model, project or local composition wi
 
 
 
-test('toolbar cycles theme immediately, toggles pin, and updates refresh interval', async () => {
+test('toolbar cycles theme immediately and updates refresh interval', async () => {
   const ui = renderer(); await new Promise(setImmediate);
   for (const theme of ['Dark', 'Light', 'System']) {
     ui.get('theme-toggle').listeners.click(); await new Promise(setImmediate);
     assert.equal(ui.get('theme-toggle').title, `Theme: ${theme}`);
     assert.equal(ui.get('theme-toggle').attributes['aria-label'], `Theme: ${theme}`);
   }
-  assert.equal(ui.get('pin-toggle').title, 'Always on top: On');
-  ui.get('pin-toggle').listeners.click(); await new Promise(setImmediate);
-  assert.equal(ui.get('pin-toggle').attributes['aria-pressed'], 'false');
-  assert.equal(ui.get('pin-toggle').title, 'Always on top: Off');
-  assert.equal(ui.get('pin-toggle').attributes['aria-label'], 'Always on top: Off');
   ui.get('refresh-interval').listeners.change({ target: { value: '0' } }); await new Promise(setImmediate);
   assert.equal(ui.get('refresh-interval').value, 0);
   ui.get('refresh-interval').listeners.change({ target: { value: '900' } }); await new Promise(setImmediate);

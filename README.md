@@ -33,7 +33,7 @@ Renderer → preload IPC → Electron main → codexAppServerClient
   两种图表 hover 显示简短日期和完整 token 数，tooltip 跟随鼠标并避开当前格与窗口边缘。
   Sparkline 零 bucket 显示 `0 tokens`；heatmap 零 bucket 显示 `No usage`，缺失 bucket 保留未知提示。
 - 不再有 Overview / Activity tabs、逐日长表、独立 Settings 页面或导出入口。
-- 工具栏提供 Theme（System → Dark → Light）、Refresh、单色线条 SVG 置顶 pin（On/Off tooltip 与 accent 边框/背景）、Preferences、mini mode、最小化和隐藏。
+- 工具栏提供 Theme（System → Dark → Light）、Refresh、Preferences、mini mode、收起到托盘和退出。
   System 跟随系统主题。设置小弹层保留透明度、1/5/15 分钟或 Manual 刷新，默认 5 分钟；
   Status 点击展开 RPC diagnostics，正常主界面只显示 `Official · Updated HH:mm`。
 - mini mode 将 `5h 71%` 与 `W 23%` 分组，以淡竖线分隔；灰色小标签搭配等宽数字和 2px 剩余进度条。
@@ -105,18 +105,29 @@ Mock 测试不证明真实账号值与 Settings 一致；真实验收需要两�
 
 仅写入 Electron userData 的 settings/Chromium 运行状态。快照在内存，不持久化官方 usage。
 已移除导出模块、相关 IPC 和 `shell.openPath` 能力，不会删除用户以前生成的导出文件。
-旧 settings 中 exportDir 不再使用；主题、透明度、置顶继续兼容，新刷新间隔缺失时默认 300 秒。
+旧 settings 中 exportDir 和 alwaysOnTop 不再使用；主题、透明度继续兼容，新刷新间隔缺失时默认 300 秒。窗口使用普通非置顶行为。
 不会保存 RPC 原始 payload 或 stderr；debug stderr 仅报告事件。
 
 CI 保留 Ubuntu Node 22/24、macOS Node 24、Windows Node 24，分开执行 lint 和 tests；
 CLI discovery 使用具有执行权限的临时 fixture，RPC 生命周期使用 mock child process，测试不需要安装或登录 CLI。
 
 `npm run verify` 执行 ESLint 与全部 node:test，包括保留的 legacy parser、文件/网络边界、
-官方握手/RPC 生命周期、映射、刷新/失败保留、聚合日期边界、remaining HUD、主题/置顶/刷新控制、
+官方握手/RPC 生命周期、映射、刷新/失败保留、聚合日期边界、remaining HUD、主题/透明度/刷新控制、
 条件 credits、精确 tooltip 与旧 UI/IPC 移除检查。没有增加依赖；chokidar 依赖仍保留，生产不使用。
 
 ## 图标与快捷启动
 
+Windows 点击“—”或托盘 `Show / Hide` 隐藏窗口后，任务栏应用按钮消失，
+仅保留系统托盘；托盘头像切换为 5h 剩余额度数字（向下取整、省略 `%`，底部细条表示剩余）。
+点击托盘图标或 `Show / Hide` 恢复窗口时，托盘恢复头像、任务栏恢复正常应用按钮。
+“×”/Alt+F4 与托盘 Quit 彻底退出，结束本工具及其 CLI 子进程；退出后不再显示托盘数字。Windows 原生最小化也会收起到托盘。任务栏图标不再被替换；固定到任务栏的快捷方式由 Windows 管理，可能仍保留。
+数字沿用深色底与绿（>30%）/黄（>10%）/红（≤10%）配色，100% 显示完整 `100`，无 5h 数据显示 `—`。
+多个额度 bucket 优先选择 `codex`；没有明确 `codex` 且存在多个 bucket 时显示未知，避免混用不同额度。
+额度刷新失败保留最后数值，改为灰色并加小点；activity 单独失败不影响额度图标。
+托盘 hover 提示列出 5h / Weekly、重置时间、额度更新时间及失败状态，隐藏期间继续按设置刷新。
+Windows 可把托盘图标收进折叠菜单；如需始终可见，请在系统设置中允许它显示。
+数字图标使用包含 16/20/24/32/40/48/64px 的 Windows ICO 静态资源，可用 `pwsh -NoLogo -NoProfile -File scripts/generate-tray-icons.ps1` 重新生成；
+运行时由主进程直接设置 ICO 文件路径，避免裁切 PNG 转换为托盘图像后的显示问题；不新增依赖或网络能力。
 图标以 `harness-pet/assets/characters/gpt-white/reference/turnaround.png` 的正面角色为参考，
 生成白发、紫瞳、双角的透明头像。`assets/icon.png` 用于通用窗口/tray 和 macOS/Linux 打包，
 `assets/icon-win.ico` 包含 16/20/24/32/40/48/64/128/256px，用于 Windows 窗口、任务栏及打包 exe。

@@ -191,9 +191,6 @@ function applyTheme(theme = 'system') {
 }
 function applySettings(settings) {
   state.settings = settings; applyTheme(settings.theme);
-  byId('pin-toggle').setAttribute('aria-pressed', String(settings.alwaysOnTop)); byId('pin-toggle').classList.toggle('active', settings.alwaysOnTop);
-  byId('pin-toggle').title = `Always on top: ${settings.alwaysOnTop ? 'On' : 'Off'}`;
-  byId('pin-toggle').setAttribute('aria-label', byId('pin-toggle').title);
   byId('opacity').value = Math.round(settings.opacity * 100); setText('opacity-value', `${byId('opacity').value}%`);
   byId('refresh-interval').value = settings.refreshIntervalSec ?? 300;
 }
@@ -210,7 +207,6 @@ async function refreshOfficial() {
 }
 byId('refresh').addEventListener('click', refreshOfficial);
 byId('theme-toggle').addEventListener('click', () => { const themes = ['system', 'dark', 'light']; updateSettings({ theme: themes[(themes.indexOf(state.settings?.theme || 'system') + 1) % themes.length] }); });
-byId('pin-toggle').addEventListener('click', () => updateSettings({ alwaysOnTop: !state.settings?.alwaysOnTop }));
 byId('opacity').addEventListener('input', (event) => setText('opacity-value', `${event.target.value}%`));
 byId('opacity').addEventListener('change', (event) => updateSettings({ opacity: Number(event.target.value) / 100 }));
 byId('refresh-interval').addEventListener('change', (event) => updateSettings({ refreshIntervalSec: Number(event.target.value) }));
@@ -219,7 +215,7 @@ byId('settings-close').addEventListener('click', () => setSettingsOpen(false));
 byId('diagnostics-toggle').addEventListener('click', () => { const details = byId('status-details'); details.hidden = !details.hidden; byId('diagnostics-toggle').setAttribute('aria-expanded', String(!details.hidden)); });
 document.addEventListener('keydown', (event) => { if (event.key === 'Escape' && !byId('settings-popover').hidden) setSettingsOpen(false); });
 document.addEventListener('pointerdown', (event) => { if (!byId('settings-popover').hidden && !byId('settings-popover').contains(event.target) && !byId('settings-trigger').contains(event.target)) setSettingsOpen(false); });
-byId('minimize').addEventListener('click', () => api.window.minimize()); byId('hide').addEventListener('click', () => api.window.hide());
+byId('minimize').addEventListener('click', () => api.window.minimize()); byId('quit').addEventListener('click', () => api.window.quit());
 byId('collapse').addEventListener('click', async () => { setSettingsOpen(false); await api.window.collapse(); byId('app').hidden = true; byId('compact').hidden = false; });
 byId('expand').addEventListener('click', async () => { await api.window.expand(); byId('compact').hidden = true; byId('app').hidden = false; });
 api.stats.onChanged(applyStats);

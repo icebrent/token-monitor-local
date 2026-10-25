@@ -20,6 +20,6 @@ contextBridge.exposeInMainWorld('codexOffline', {
     collapse: () => ipcRenderer.invoke('window:collapse'),
     expand: () => ipcRenderer.invoke('window:expand'),
     minimize: () => ipcRenderer.send('window:minimize'),
-    hide: () => ipcRenderer.send('window:hide')
+    quit: () => ipcRenderer.send('window:quit')
   }
 });

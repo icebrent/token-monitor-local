@@ -6,6 +6,7 @@ const { app, BrowserWindow, ipcMain, Menu, nativeImage, screen, session, Tray } 
 const { CodexAppServerClient } = require('./codexAppServerClient');
 const { OfficialUsageStore } = require('../shared/officialUsage');
 const { installOfflineSessionPolicy, lockWebContents } = require('./offlinePolicy');
+const { createTrayQuota } = require('./trayQuota');
 
 const APP_NAME = 'Codex Offline Monitor';
 const APP_ID = 'local.codex.offlinemonitor';
@@ -16,8 +17,9 @@ const PRELOAD = path.join(__dirname, 'preload.js');
 const NORMAL_MINIMUM_SIZE = { width: 440, height: 690 };
 const WORK_AREA_MARGIN = 8;
 const COMPACT_SIZE = { width: 248, height: 64 };
-const SETTINGS_KEYS = new Set(['alwaysOnTop', 'opacity', 'theme', 'refreshIntervalSec']);
+const SETTINGS_KEYS = new Set(['opacity', 'theme', 'refreshIntervalSec']);
 const SESSION_PARTITION = 'codex-offline-memory';
+const trayQuota = createTrayQuota({ portrait: WINDOW_ICON });
 
 app.setName(APP_NAME);
 if (process.platform === 'win32') app.setAppUserModelId(APP_ID);
@@ -40,13 +42,12 @@ function settingsPath() {
 }
 
 function defaultSettings() {
-  return { alwaysOnTop: true, opacity: 0.94, theme: 'system', refreshIntervalSec: 300 };
+  return { opacity: 0.94, theme: 'system', refreshIntervalSec: 300 };
 }
 
 function normalizeSettings(value) {
   const input = value && typeof value === 'object' ? value : {};
   return {
-    alwaysOnTop: input.alwaysOnTop !== false,
     opacity: Math.min(1, Math.max(0.55, Number(input.opacity) || 0.94)),
     theme: ['system', 'light', 'dark'].includes(input.theme) ? input.theme : 'system',
     refreshIntervalSec: [0, 60, 300, 900].includes(input.refreshIntervalSec) ? input.refreshIntervalSec : 300
@@ -86,6 +87,7 @@ async function collectNow({ onShow = false } = {}) {
   await (onShow ? officialStore.refreshOnShow() : officialStore.refresh());
   latestStats = publicStats();
   if (!quitting && mainWindow && !mainWindow.isDestroyed()) {
+    updateTrayQuota();
     mainWindow.webContents.send('stats:changed', latestStats);
   }
   return latestStats;
@@ -93,7 +95,6 @@ async function collectNow({ onShow = false } = {}) {
 
 function applyWindowSettings(settings) {
   if (!mainWindow || mainWindow.isDestroyed()) return;
-  mainWindow.setAlwaysOnTop(settings.alwaysOnTop);
   mainWindow.setOpacity(settings.opacity);
 }
 
@@ -136,7 +137,6 @@ function createWindow() {
     transparent: true,
     frame: false,
     resizable: true,
-    alwaysOnTop: settings.alwaysOnTop,
     backgroundColor: '#00000000',
     icon: WINDOW_ICON,
     webPreferences: {
@@ -155,35 +155,57 @@ function createWindow() {
   lockWebContents(mainWindow.webContents, RENDERER_HTML);
   mainWindow.setOpacity(settings.opacity);
   mainWindow.loadFile(RENDERER_HTML);
-  mainWindow.on('show', () => collectNow({ onShow: true }));
-  mainWindow.once('ready-to-show', () => mainWindow.show());
-  mainWindow.on('close', (event) => {
-    if (!quitting) {
-      event.preventDefault();
-      mainWindow.hide();
-    }
+  mainWindow.on('show', () => {
+    mainWindow.setSkipTaskbar(false);
+    updateTrayQuota();
+    collectNow({ onShow: true });
   });
+  mainWindow.on('hide', updateTrayQuota);
+  mainWindow.on('minimize', hideWindow);
+  mainWindow.once('ready-to-show', () => mainWindow.show());
+  mainWindow.on('close', () => { if (!quitting) quitApplication(); });
 }
 
 function createTray() {
   const image = nativeImage.createFromPath(APP_ICON).resize({ width: 20, height: 20 });
-  tray = new Tray(image);
+  tray = new Tray(process.platform === 'win32' ? WINDOW_ICON : image);
   tray.setToolTip(APP_NAME);
   tray.setContextMenu(Menu.buildFromTemplate([
     { label: 'Show / Hide', click: () => toggleWindow() },
     { label: 'Refresh Official Usage', click: () => collectNow() },
     { type: 'separator' },
-    { label: 'Quit', click: () => { quitting = true; app.quit(); } }
+    { label: 'Quit', click: quitApplication }
   ]));
   tray.on('click', toggleWindow);
+  updateTrayQuota();
+}
+
+function updateTrayQuota() {
+  if (!tray || !mainWindow || mainWindow.isDestroyed()) return;
+  trayQuota.update(tray, publicStats(), !mainWindow.isVisible() || mainWindow.isMinimized());
+}
+
+function hideWindow() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  mainWindow.setSkipTaskbar(true);
+  mainWindow.hide();
+  updateTrayQuota();
+}
+
+function quitApplication() {
+  quitting = true;
+  app.quit();
 }
 
 function toggleWindow() {
   if (!mainWindow || mainWindow.isDestroyed()) return;
-  if (mainWindow.isVisible()) mainWindow.hide();
+  if (mainWindow.isVisible() && !mainWindow.isMinimized()) hideWindow();
   else {
+    mainWindow.setSkipTaskbar(false);
+    if (mainWindow.isMinimized()) mainWindow.restore();
     mainWindow.show();
     mainWindow.focus();
+    updateTrayQuota();
   }
 }
 
@@ -241,11 +263,11 @@ function registerIpc() {
   });
   ipcMain.on('window:minimize', (event) => {
     requireMainSender(event);
-    mainWindow.minimize();
+    hideWindow();
   });
-  ipcMain.on('window:hide', (event) => {
+  ipcMain.on('window:quit', (event) => {
     requireMainSender(event);
-    mainWindow.hide();
+    quitApplication();
   });
 }
 

@@ -51,7 +51,7 @@ test('single page HUD removes tabs, daily list, export and lifetime hero wiring'
   assert.doesNotMatch(html + script, /today-card|view-select|summary-view|activity-view|daily-activity|daily-panel|settings-sheet|choose-export|export-now|open-export|open-user-data|total-delta|tokenTransition/);
   assert.doesNotMatch(main + preload, /export:|exportDir|exporter|openUserData|openPath|dialog|localPaths|codexJsonlParser/);
   assert.equal(fs.existsSync(path.join(root, 'src/shared/exporter.js')), false);
-  for (const id of ['theme-toggle', 'pin-toggle', 'refresh-interval', 'settings-popover', 'compact-quota']) assert.ok(html.includes(`id="${id}"`));
+  for (const id of ['theme-toggle', 'refresh-interval', 'settings-popover', 'compact-quota']) assert.ok(html.includes(`id="${id}"`));
 });
 test('window is compact and screen aware; production renderer stays network free', () => {
   assert.match(main, /NORMAL_MINIMUM_SIZE = \{ width: 440, height: 690 \}/);
@@ -64,7 +64,7 @@ test('window is compact and screen aware; production renderer stays network free
 });
 
 test('every toolbar icon and preferences close action has a title and accessible label', () => {
-  for (const id of ['theme-toggle', 'refresh', 'pin-toggle', 'settings-trigger', 'collapse', 'minimize', 'hide', 'settings-close', 'expand']) {
+  for (const id of ['theme-toggle', 'refresh', 'settings-trigger', 'collapse', 'minimize', 'quit', 'settings-close', 'expand']) {
     const button = html.match(new RegExp(`<button id="${id}"[^>]*>`))[0];
     assert.match(button, /title="[^"]+"/);
     assert.match(button, /aria-label="[^"]+"/);
